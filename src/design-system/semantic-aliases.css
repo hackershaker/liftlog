@@ -1,0 +1,70 @@
+/* Theme System — bridged to --nope-* tokens */
+:root {
+  /* Backgrounds */
+  --bg-primary: var(--nope-bg);
+  --bg-secondary: var(--nope-bg-secondary);
+  --bg-hover: var(--nope-bg-tertiary);
+  --bg-input: var(--nope-bg-secondary);
+  --bg-input-hover: var(--nope-bg-tertiary);
+
+  /* Accent — indigo */
+  --accent-primary: var(--nope-accent);
+  --accent-hover: #4a5be6;
+  --accent-subtle: var(--nope-accent-50);
+  --accent-link: var(--nope-accent);
+  --accent-gradient: linear-gradient(135deg, var(--nope-accent), var(--nope-accent-purple));
+  --accent-gradient-disabled: var(--nope-accent-25);
+  --accent-10: var(--nope-accent-10);
+  --accent-15: var(--nope-accent-15);
+  --accent-20: var(--nope-accent-25);
+
+  /* Text */
+  --text-primary: var(--nope-text-primary);
+  --text-secondary: var(--nope-text-secondary);
+  --text-muted: var(--nope-text-tertiary);
+  --text-on-accent: #ffffff;
+
+  /* Borders */
+  --border-default: var(--nope-border);
+  --border-subtle: var(--nope-border);
+  --border-input: var(--nope-border);
+  --shadow-dropdown: rgba(0, 0, 0, 0.6);
+
+  /* Status */
+  --status-success: var(--nope-accent-green);
+  --status-error: var(--nope-accent-red);
+  --status-warning: var(--nope-accent-orange);
+  --success-10: var(--nope-accent-green-10);
+  --success-20: rgba(0, 166, 126, 0.2);
+  --success-30: rgba(0, 166, 126, 0.3);
+  --error-10: var(--nope-accent-red-10);
+  --error-30: var(--nope-accent-red-40);
+
+  /* Typography */
+  --font-heading: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading-weight: 600;
+  --font-heading-tracking: -0.03em;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body-tracking: -0.02em;
+
+  /* Tool buttons */
+  --tool-border: var(--nope-accent-15);
+  --tool-border-hover: var(--nope-accent-25);
+  --tool-bg-active: var(--nope-accent-10);
+  --tool-bg-hover: var(--nope-bg-tertiary);
+  --tool-text: var(--nope-text-primary);
+  --tool-shadow: var(--nope-accent-10);
+  --tool-shadow-hover: var(--nope-accent-5);
+
+  /* Headings */
+  --heading-color: var(--nope-text-primary);
+
+  /* Badge */
+  --badge-bg: var(--nope-accent);
+  --badge-text: #ffffff;
+
+  /* Footer / Branding */
+  --brand-footer-bg: var(--nope-bg-secondary);
+  --brand-footer-text: var(--nope-text-tertiary);
+}
+

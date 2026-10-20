@@ -30,7 +30,7 @@ export default function ExerciseCard({ exercise, template, lastExercise, onChang
     const lastSet = exercise.sets[exercise.sets.length - 1];
     const newSet: ExerciseSet = {
       setNumber: newSetNumber,
-      reps: lastSet?.reps || template.defaultReps,
+      reps: template.defaultRepsBySet?.[exercise.sets.length] ?? lastSet?.reps ?? template.defaultReps,
       weight: isWeighted ? (lastSet?.weight || template.defaultWeight) : undefined,
       completed: false
     };
@@ -63,6 +63,7 @@ export default function ExerciseCard({ exercise, template, lastExercise, onChang
             <p className="text-xs text-text-muted">
               {completedSets}/{totalSets} sets completed
             </p>
+            <p className="text-xs text-text-muted">Rest: {exercise.restBetweenSetsSeconds ?? template.restBetweenSetsSeconds ?? 0}s between sets / {exercise.restAfterExerciseSeconds ?? template.restAfterExerciseSeconds ?? 0}s after exercise</p>
           </div>
         </div>
 

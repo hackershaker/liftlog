@@ -4,6 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
+  base: '/liftlog/',
+
   plugins: [
     react(),
     VitePWA({
@@ -13,9 +15,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Ballast — Open Source Fitness Tracker',
-        short_name: 'Ballast',
-        description: 'Open-source, offline-first fitness tracker by Studio N.O.P.E.',
+        name: 'Liftlog - Workout & Fitness Tracker',
+        short_name: 'Liftlog',
+        description: 'Custom workout routines, rest timers, and personal fitness records.',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',

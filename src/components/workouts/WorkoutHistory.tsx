@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Trash2, TrendingUp, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { WorkoutLog, WorkoutCategory } from '../../types';
-import { PPL_CATEGORY_COLORS } from '../../constants';
+import { WorkoutLog } from '../../types';
+import { formatDuration } from '../../utils/workoutTiming';
 
 interface WorkoutHistoryProps {
-  category: WorkoutCategory;
   logs: WorkoutLog[];
   onDeleteLog: (logId: string) => void;
 }
@@ -36,16 +35,15 @@ const formatFullDate = (dateStr: string) => {
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-export default function WorkoutHistory({ category, logs, onDeleteLog }: WorkoutHistoryProps) {
+export default function WorkoutHistory({ logs, onDeleteLog }: WorkoutHistoryProps) {
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
-  // Filter logs for this category and sort by date (newest first)
+  // Include all routines, including history for deleted routines.
   const categoryLogs = useMemo(() => {
-    return logs
-      .filter(l => l.category === category)
+    return [...logs]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [logs, category]);
+  }, [logs]);
 
   // Get unique exercise names from all logs
   const exerciseNames = useMemo(() => {
@@ -88,7 +86,7 @@ export default function WorkoutHistory({ category, logs, onDeleteLog }: WorkoutH
       .reverse(); // Oldest first for chart
   }, [categoryLogs, selectedExercise]);
 
-  const categoryColor = PPL_CATEGORY_COLORS[category];
+  const categoryColor = '#0070f3';
 
   // Calculate total stats
   const totalWorkouts = categoryLogs.length;
@@ -102,7 +100,7 @@ export default function WorkoutHistory({ category, logs, onDeleteLog }: WorkoutH
         <Calendar size={48} className="mx-auto text-text-muted mb-4" />
         <h3 className="font-display font-semibold text-text-primary mb-2">No Workouts Yet</h3>
         <p className="text-text-muted text-sm">
-          Complete a {category} workout to see your history here.
+          Complete a workout to see your history here.
         </p>
       </div>
     );
@@ -210,7 +208,9 @@ export default function WorkoutHistory({ category, logs, onDeleteLog }: WorkoutH
                   <p className="font-display font-semibold text-text-primary">
                     {formatFullDate(log.date)}
                   </p>
+                  {log.durationSeconds !== undefined && <p className="text-sm text-text-muted">Duration: {formatDuration(log.durationSeconds)}</p>}
                   <p className="text-sm text-text-muted">
+                    {log.templateName || `${log.category} ${log.templateType}`} ·{' '}
                     {log.exercises.length} exercises · {totalLogSets} sets
                   </p>
                 </div>

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { History, ArrowUp, ArrowDown, Footprints, Dumbbell, User } from 'lucide-react';
-import { WorkoutData, WorkoutCategory, WorkoutLog, WorkoutTemplate, TemplateType, StreakData, ActiveWorkoutSession } from '../../types';
-import { PPL_CATEGORY_COLORS, PPL_CATEGORY_LABELS, INITIAL_WORKOUT_DATA } from '../../constants';
+import { Plus, Play, Edit3, Trash2, ArrowLeft } from 'lucide-react';
+import { WorkoutData, WorkoutLog, WorkoutTemplate, StreakData, ActiveWorkoutSession } from '../../types';
+import { PPL_CATEGORY_LABELS } from '../../constants';
 import WorkoutSession from './WorkoutSession';
 import WorkoutHistory from './WorkoutHistory';
 import TemplateEditor from './TemplateEditor';
+import { restAudio } from '../../utils/restAudio';
 
 interface WorkoutTrackerProps {
   workouts: WorkoutData;
@@ -15,42 +16,18 @@ interface WorkoutTrackerProps {
   onUpdateActiveWorkout: (activeWorkout: ActiveWorkoutSession | undefined) => void;
 }
 
-type ViewMode = 'session' | 'history';
-
-const CATEGORY_ICONS: Record<WorkoutCategory, typeof ArrowUp> = {
-  push: ArrowUp,
-  pull: ArrowDown,
-  legs: Footprints
-};
+const routineName = (t: WorkoutTemplate) => t.name || `${PPL_CATEGORY_LABELS[t.category]} ${t.templateType === 'weighted' ? 'Weighted' : 'Bodyweight'}`;
+const matchesSession = (session: ActiveWorkoutSession, t: WorkoutTemplate) => session.templateId
+  ? session.templateId === t.id
+  : t.category !== 'custom' && session.category === t.category && session.templateType === t.templateType;
 
 export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkouts, onUpdateWorkoutStreak, activeWorkout, onUpdateActiveWorkout }: WorkoutTrackerProps) {
-  // Initialize from active workout if one exists
-  const [selectedCategory, setSelectedCategory] = useState<WorkoutCategory>(activeWorkout?.category || 'push');
-  const [selectedTemplateType, setSelectedTemplateType] = useState<TemplateType>(activeWorkout?.templateType || 'weighted');
-  const [viewMode, setViewMode] = useState<ViewMode>('session');
-  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
-
-  // Get template for selected category and type
-  const currentTemplate = workouts.templates.find(
-    t => t.category === selectedCategory && t.templateType === selectedTemplateType
-  ) || INITIAL_WORKOUT_DATA.templates.find(
-    t => t.category === selectedCategory && t.templateType === selectedTemplateType
-  )!;
-
-  // Handle saving a completed workout
-  const handleSaveWorkout = (log: WorkoutLog) => {
-    const updatedWorkouts: WorkoutData = {
-      ...workouts,
-      logs: [...workouts.logs, log]
-    };
-    onUpdateWorkouts(updatedWorkouts);
-
-    // Clear active workout after saving
-    onUpdateActiveWorkout(undefined);
-
-    // Update workout streak
-    updateWorkoutStreak(log.date);
-  };
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    activeWorkout ? workouts.templates.find(t => matchesSession(activeWorkout, t))?.id || null : null);
+  const [view, setView] = useState<'routines' | 'session' | 'history'>(() => activeWorkout ? 'session' : 'routines');
+  const [editing, setEditing] = useState<WorkoutTemplate | null>(null);
+  const [savedWorkout, setSavedWorkout] = useState(false);
+  const selected = workouts.templates.find(t => t.id === selectedId);
 
   const updateWorkoutStreak = (logDate: string) => {
     // Get existing logged dates or initialize empty array
@@ -113,158 +90,107 @@ export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkou
     });
   };
 
-  // Handle saving template changes
-  const handleSaveTemplate = (template: WorkoutTemplate) => {
-    // Check if template already exists
-    const existingIndex = workouts.templates.findIndex(
-      t => t.category === template.category && t.templateType === template.templateType
-    );
 
-    let updatedTemplates;
-    if (existingIndex >= 0) {
-      // Update existing template
-      updatedTemplates = workouts.templates.map((t, i) =>
-        i === existingIndex ? template : t
-      );
-    } else {
-      // Add new template (for users with old data)
-      updatedTemplates = [...workouts.templates, template];
+  const handleSaveWorkout = (log: WorkoutLog) => {
+    onUpdateWorkouts({ ...workouts, logs: [...workouts.logs, log] });
+    onUpdateActiveWorkout(undefined);
+    updateWorkoutStreak(log.date);
+    setSavedWorkout(true);
+    setView('routines');
+  };
+
+  const saveRoutine = (template: WorkoutTemplate) => {
+    const exists = workouts.templates.some(t => t.id === template.id);
+    onUpdateWorkouts({ ...workouts, templates: exists
+      ? workouts.templates.map(t => t.id === template.id ? template : t)
+      : [...workouts.templates, template] });
+    setEditing(null);
+  };
+
+  const startRoutine = (template: WorkoutTemplate) => {
+    if (activeWorkout && !matchesSession(activeWorkout, template)) {
+      if (!confirm('Discard the workout in progress and start this routine?')) return;
     }
-
-    onUpdateWorkouts({
-      ...workouts,
-      templates: updatedTemplates
-    });
-    setShowTemplateEditor(false);
-  };
-
-  // Handle deleting a workout log
-  const handleDeleteLog = (logId: string) => {
-    const updatedWorkouts: WorkoutData = {
-      ...workouts,
-      logs: workouts.logs.filter(l => l.id !== logId)
-    };
-    onUpdateWorkouts(updatedWorkouts);
-  };
-
-  // Count workouts per category
-  const getWorkoutCount = (category: WorkoutCategory) => {
-    return workouts.logs.filter(l => l.category === category).length;
+    void restAudio.unlock();
+    if (!activeWorkout || !matchesSession(activeWorkout, template)) {
+      onUpdateActiveWorkout({
+        templateId: template.id, category: template.category, templateType: template.templateType,
+        exercises: template.exercises.map(e => ({
+          id: crypto.randomUUID(), exerciseId: e.id, name: e.name, type: e.type,
+          restBetweenSetsSeconds: e.restBetweenSetsSeconds ?? 0,
+          restAfterExerciseSeconds: e.restAfterExerciseSeconds ?? 0,
+          sets: Array.from({ length: e.defaultSets }, (_, i) => ({
+            setNumber: i + 1, reps: e.defaultRepsBySet?.[i] ?? e.defaultReps, weight: e.type === 'weighted' ? e.defaultWeight : undefined, completed: false
+          }))
+        })), notes: '', startedAt: new Date().toISOString()
+      });
+    }
+    setSelectedId(template.id);
+    setSavedWorkout(false);
+    setView('session');
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Category selector */}
       <div className="flex gap-2">
-        {(['push', 'pull', 'legs'] as WorkoutCategory[]).map((category) => {
-          const Icon = CATEGORY_ICONS[category];
-          const isSelected = selectedCategory === category;
-          const color = PPL_CATEGORY_COLORS[category];
-          const count = getWorkoutCount(category);
-
-          return (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`flex-1 py-3 px-4 rounded-xl font-display font-semibold transition-all flex flex-col items-center gap-1 ${
-                isSelected
-                  ? 'text-white shadow-lg'
-                  : 'bg-bg-tertiary text-text-muted hover:bg-bg-secondary'
-              }`}
-              style={isSelected ? { backgroundColor: color } : undefined}
-            >
-              <Icon size={20} />
-              <span>{PPL_CATEGORY_LABELS[category]}</span>
-              {count > 0 && (
-                <span className={`text-xs ${isSelected ? 'text-white/70' : 'text-text-muted'}`}>
-                  {count} logged
-                </span>
-              )}
-            </button>
-          );
-        })}
+        <button onClick={() => setView('routines')} className={`flex-1 py-3 rounded-lg ${view !== 'history' ? 'bg-white/10 text-text-primary' : 'text-text-muted'}`}>Routines</button>
+        <button onClick={() => setView('history')} className={`flex-1 py-3 rounded-lg ${view === 'history' ? 'bg-white/10 text-text-primary' : 'text-text-muted'}`}>History</button>
       </div>
-
-      {/* Template type toggle */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setSelectedTemplateType('weighted')}
-          className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-            selectedTemplateType === 'weighted'
-              ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/50'
-              : 'bg-bg-tertiary text-text-muted border border-white/10 hover:bg-bg-secondary'
-          }`}
-        >
-          <Dumbbell size={18} />
-          Weighted
-        </button>
-        <button
-          onClick={() => setSelectedTemplateType('bodyweight')}
-          className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-            selectedTemplateType === 'bodyweight'
-              ? 'bg-accent-info/20 text-accent-info border border-accent-info/50'
-              : 'bg-bg-tertiary text-text-muted border border-white/10 hover:bg-bg-secondary'
-          }`}
-        >
-          <User size={18} />
-          Bodyweight
-        </button>
-      </div>
-
-      {/* View toggle */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setViewMode('session')}
-          className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-            viewMode === 'session'
-              ? 'bg-white/10 text-text-primary border border-white/20'
-              : 'bg-bg-tertiary text-text-muted border border-white/10 hover:bg-bg-secondary'
-          }`}
-        >
-          New Workout
-        </button>
-        <button
-          onClick={() => setViewMode('history')}
-          className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-            viewMode === 'history'
-              ? 'bg-white/10 text-text-primary border border-white/20'
-              : 'bg-bg-tertiary text-text-muted border border-white/10 hover:bg-bg-secondary'
-          }`}
-        >
-          <History size={16} />
-          History
-        </button>
-      </div>
-
-      {/* Content based on view mode */}
-      {viewMode === 'session' ? (
-        <WorkoutSession
-          key={`${selectedCategory}-${selectedTemplateType}-${currentTemplate.lastModified}`}
-          category={selectedCategory}
-          templateType={selectedTemplateType}
-          template={currentTemplate}
-          logs={workouts.logs}
-          onSave={handleSaveWorkout}
-          onEditTemplate={() => setShowTemplateEditor(true)}
-          activeWorkout={activeWorkout?.category === selectedCategory && activeWorkout?.templateType === selectedTemplateType ? activeWorkout : undefined}
-          onUpdateActiveWorkout={onUpdateActiveWorkout}
-        />
+      {view === 'history' ? (
+        <WorkoutHistory logs={workouts.logs} onDeleteLog={id => onUpdateWorkouts({ ...workouts, logs: workouts.logs.filter(l => l.id !== id) })} />
+      ) : view === 'session' && selected ? (
+        <>
+          <button onClick={() => setView('routines')} className="flex items-center gap-2 text-text-muted"><ArrowLeft size={18} />All routines</button>
+          <WorkoutSession key={selected.id + selected.lastModified} category={selected.category} templateType={selected.templateType}
+            template={{ ...selected, name: routineName(selected) }} logs={workouts.logs} onSave={handleSaveWorkout}
+            onEditTemplate={() => setEditing(selected)}
+            onCancel={() => {
+              onUpdateActiveWorkout(undefined);
+              setSelectedId(null);
+              setSavedWorkout(false);
+              setView('routines');
+            }}
+            activeWorkout={activeWorkout && matchesSession(activeWorkout, selected) ? activeWorkout : undefined}
+            onUpdateActiveWorkout={onUpdateActiveWorkout} />
+        </>
       ) : (
-        <WorkoutHistory
-          category={selectedCategory}
-          logs={workouts.logs}
-          onDeleteLog={handleDeleteLog}
-        />
+        <>
+          {savedWorkout && <p role="status" className="card p-4 text-accent-primary">Workout saved.</p>}
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl font-bold">My Routines</h2>
+            <button className="btn-primary flex items-center gap-2" disabled={workouts.templates.length >= 64} onClick={() => setEditing({
+              id: crypto.randomUUID(), name: '', category: 'custom', templateType: 'weighted', exercises: [], lastModified: new Date().toISOString()
+            })}><Plus size={18} />New Routine</button>
+          </div>
+          {workouts.templates.length === 0 && <p className="card p-6 text-text-muted">Create a routine such as Chest 1 or Leg 2, then add your exercises.</p>}
+          <div className="space-y-3">
+            {workouts.templates.map(template => {
+              const inProgress = activeWorkout && matchesSession(activeWorkout, template);
+              return (
+                <div key={template.id} className="card p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><h3 className="font-display font-semibold break-words">{routineName(template)}</h3>
+                      <p className="text-sm text-text-muted">{template.exercises.length} exercises · {template.exercises.reduce((n, e) => n + e.defaultSets, 0)} sets</p></div>
+                    <div className="flex gap-1">
+                      <button aria-label={`Edit ${routineName(template)}`} className="p-2 text-text-muted" onClick={() => setEditing(template)}><Edit3 size={18} /></button>
+                      <button aria-label={`Delete ${routineName(template)}`} className="p-2 text-text-muted" onClick={() => {
+                        if (!confirm('Delete this routine? Workout history will be kept.')) return;
+                        onUpdateWorkouts({ ...workouts, templates: workouts.templates.filter(t => t.id !== template.id) });
+                        if (inProgress) onUpdateActiveWorkout(undefined);
+                      }}><Trash2 size={18} /></button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-text-muted break-words">{template.exercises.map(e => e.name).join(' · ')}</p>
+                  <button className="btn-primary w-full flex items-center justify-center gap-2" disabled={!template.exercises.length} onClick={() => startRoutine(template)}>
+                    <Play size={16} />{inProgress ? 'Resume Workout' : 'Start Workout'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
-
-      {/* Template Editor Drawer */}
-      {showTemplateEditor && (
-        <TemplateEditor
-          template={currentTemplate}
-          onSave={handleSaveTemplate}
-          onClose={() => setShowTemplateEditor(false)}
-        />
-      )}
+      {editing && <TemplateEditor key={editing.id} template={{ ...editing, name: editing.name ?? routineName(editing) }} onSave={saveRoutine} onClose={() => setEditing(null)} />}
     </div>
   );
 }

@@ -223,7 +223,7 @@ export default function SettingsDrawer({ isOpen, onClose, profile, onUpdateProfi
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fitness-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `liftlog-backup-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -991,21 +991,10 @@ export default function SettingsDrawer({ isOpen, onClose, profile, onUpdateProfi
               <h3 className="font-display font-semibold text-text-primary">About</h3>
             </div>
             <div className="bg-bg-secondary rounded-xl p-4 border border-white/5">
-              <p className="text-text-primary font-medium">Ballast</p>
-              <p className="text-text-muted text-sm">
-                by{' '}
-                <a
-                  href="https://studionope.nl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-accent-primary transition-colors"
-                >
-                  Studio N.O.P.E.
-                </a>
-                {' · Summer 2026'}
-              </p>
+              <p className="text-text-primary font-medium">Liftlog</p>
+              <p className="text-text-muted text-sm">Personal workout &amp; fitness tracker</p>
               <p className="text-text-muted text-xs mt-2">
-                Track your fitness journey with weight, measurements, PRs, and skills.
+                Build your routines and track workouts, rest times, and fitness progress.
               </p>
             </div>
           </div>

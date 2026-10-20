@@ -1,146 +1,63 @@
-<p align="center">
-  <img src="docs/ballast-hero.png" alt="Ballast — open-source fitness tracker" width="720" />
-</p>
+# Liftlog
 
-# Ballast
+기기 안에 운동 기록을 저장하는 피트니스 트래커입니다.
 
-**A free and open-source fitness tracker. Because nobody should pay €30/month for something this simple.**
+[앱 열기](https://hackershaker.github.io/liftlog/)
 
-A privacy-first, offline-capable Progressive Web App (PWA) for tracking weight, body measurements, strength PRs, and calisthenics skills. Your data stays on your device. No accounts. No cloud. No subscriptions.
+## 주요 기능
 
-**[Live demo →](https://ballast-sigma.vercel.app)**
+- 이름을 자유롭게 지정하는 운동 루틴 생성·수정·삭제
+- 세트별 반복 횟수, 기본 중량, 세트·운동 사이 휴식 시간 설정
+- 진행 중인 운동 재개 또는 기록 없이 취소
+- 실시간 운동 시간 표시와 완료 기록 저장
+- 상단 고정 휴식 타이머와 완료 알림음
+- 체중, 신체 치수, 개인 최고 기록, 맨몸 운동 기술 추적
+- 다크·라이트 테마와 홈 화면에 추가할 수 있는 PWA
+- JSON 백업 내보내기·가져오기
 
----
+## 데이터 저장
 
-## About Studio N.O.P.E.
+프로필·루틴·운동 기록은 브라우저의 localStorage에 저장합니다. 계정이나 서버 저장소가 없으며 기기 간 자동 동기화는 지원하지 않습니다. 사이트 데이터를 삭제하면 기록이 사라질 수 있으므로 설정에서 JSON 백업을 내보내세요.
 
-Creative Solution Engineers using AI's infinite possibilities to help humans realise their dreams.
+휴식 알림음은 운동 화면을 열어둔 상태에서 사용하세요. Test Sound로 소리를 활성화하고 확인할 수 있습니다.
 
-We're [@tijsluitse](https://github.com/tijsluitse) and [@basfijneman](https://github.com/basfijneman) — two guys who believe the best tools are the ones that get out of your way. We built Ballast because tracking your training shouldn't require a €30/month subscription and an account in somebody else's cloud. It should be one tap, some numbers, done — on a device you own, with data you own.
-
-We made this open source because we think everybody deserves useful tools, not just the people who can afford them. When you can measure your progress without friction, you show up more often — and that's really what fitness tracking is for. Open source means the community can shape this into exactly what they need.
-
-Want to work with us? We help teams build smarter workflows with AI-powered tooling, Shopify development, and creative engineering. Reach out at [info@studionope.nl](mailto:info@studionope.nl) or visit [studionope.nl](https://studionope.nl).
-
----
-
-## Why Ballast exists
-
-The fitness-tracking app market is full of apps charging €30/month (or $30, take your pick) for features that amount to writing down a number and drawing a graph. You shouldn't need a subscription to remember what you weighed last Tuesday.
-
-Ballast started as a personal tool. It works. It's fast. It runs on your phone like a native app. It has no ads, no analytics, no dark patterns, and no upsells — because there's nothing to upsell. Fork it, self-host it, or just clone it and run it locally.
-
-## Screenshots
-
-<p align="center">
-  <img src="docs/Ballast-1.png" alt="Ballast dashboard" width="220" />
-  <img src="docs/Ballast-2.png" alt="Ballast weight tracking" width="220" />
-  <img src="docs/Ballast-3.png" alt="Ballast workouts" width="220" />
-</p>
-<p align="center">
-  <img src="docs/Ballast-4.png" alt="Ballast strength PRs" width="220" />
-  <img src="docs/Ballast-5.png" alt="Ballast skills tracker" width="220" />
-</p>
-
-## Features
-
-- **Weight tracking** with trend graphs
-- **Body measurements** — waist, chest, arms, legs, shoulders
-- **Strength PRs** — log bodyweight and weighted exercise records
-- **Calisthenics skills** — 15 skills pre-configured with progression steps (muscle-up, front lever, planche, handstand, etc.), fully editable
-- **Workout logger** — PPL templates (push / pull / legs), both weighted and bodyweight variants
-- **Recipes** — protein shakes, ice cream, waffles, snacks, all editable
-- **Streak counter** to keep you honest
-- **Dark & light mode** — toggle in the header; respects your system preference on first visit
-- **PWA** — install on iOS or Android, works offline
-
-## Data & privacy
-
-Everything lives in your browser's `localStorage`. There is no backend. There is no telemetry. There is no account. If you clear your browser data, your data is gone — that's the trade-off for not having anyone else hold it.
-
-## Quick start
+## 로컬 실행
 
 ```bash
-git clone https://github.com/N-O-P-E/Ballast.git
-cd Ballast
-npm install
+git clone https://github.com/hackershaker/liftlog.git
+cd liftlog
+npm ci
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+개발 서버 주소: http://localhost:5173/liftlog/
 
-### Build for production
+Windows PowerShell에서 실행 정책으로 npm 실행이 차단되면 npm.cmd를 사용하세요.
+
+## 테스트·빌드
 
 ```bash
+npm test
 npm run build
 ```
 
-Outputs a static site to `dist/`.
+빌드 결과는 dist/에 생성됩니다. 현재 Vite의 배포 기본 경로는 /liftlog/입니다.
 
-## Deploy it yourself
+## GitHub Pages 배포
 
-Ballast is a static PWA — drop `dist/` on any host.
+```bash
+npm run build
+git add dist
+git commit -m "Update deployed app" --only -- dist
+git subtree push --prefix dist origin gh-pages
+```
 
-- **Vercel / Netlify / Cloudflare Pages** — connect the repo, click deploy, done
-- **GitHub Pages** — `npm i -D gh-pages`, add `"deploy": "gh-pages -d dist"` to scripts, `npm run deploy`
-- **Any static host** — just serve the `dist/` folder
+GitHub Pages는 gh-pages 브랜치의 루트 폴더를 배포하도록 설정합니다.
 
-## Install as an app
+## 사용 기술
 
-### iOS
-Open the deployed URL in Safari → Share → Add to Home Screen.
+React, TypeScript, Vite, Tailwind CSS, Recharts, Zod, Workbox.
 
-### Android
-Open the deployed URL in Chrome → three-dot menu → Install app.
+## 라이선스
 
-## Customize it
-
-All defaults live in `src/constants/index.ts`:
-
-- **Profile defaults** — `INITIAL_PROFILE`
-- **Phase planner** — `DEFAULT_PHASES` (mini cut / lean bulk / maintenance blocks with calorie + protein targets)
-- **Exercise list** — `EXERCISES`
-- **Skills list** — `DEFAULT_SKILL_DEFINITIONS`
-- **Workout templates** — `DEFAULT_TEMPLATES`
-- **Recipes** — `DEFAULT_RECIPES`
-
-Everything is also editable at runtime from the settings drawer.
-
-## Tech stack
-
-- React 18 + TypeScript
-- Tailwind CSS
-- Recharts (graphs)
-- Lucide React (icons)
-- Vite (build)
-- `vite-plugin-pwa` (PWA / service worker)
-- Studio N.O.P.E. design system (included in `src/design-system/`)
-
-## Contributing
-
-Issues and PRs welcome. Ballast is maintained as a gift to the internet — keep it kind and keep it focused. No analytics, no paywalls, no cloud sync that locks users in.
-
-## License
-
-MIT. Fork it, sell it, give it away, embed it in something weird. Just don't charge people €30/month for it.
-
-## Follow us on X
-
-If you want to see what Studio N.O.P.E. ships next, follow us on X:
-
-- [@bas_fijneman](https://x.com/bas_fijneman)
-- [@TisInternet](https://x.com/TisInternet)
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=N-O-P-E%2FBallast&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=N-O-P-E/Ballast&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=N-O-P-E/Ballast&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=N-O-P-E/Ballast&type=date&legend=top-left" />
- </picture>
-</a>
-
----
-
-Made with stubborn irritation by [Studio N.O.P.E.](https://studionope.nl)
+MIT. 원본 코드의 저작권 및 라이선스 고지는 [LICENSE](LICENSE)에 보존되어 있습니다.

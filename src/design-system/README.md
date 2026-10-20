@@ -1,6 +1,6 @@
 # Design System Kit
 
-Portable design-system files used throughout Ballast.
+Portable design-system files used throughout Liftlog.
 
 ## Included Files
 

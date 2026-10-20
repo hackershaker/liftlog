@@ -103,13 +103,17 @@ const TemplateExerciseSchema = z.object({
   type: z.enum(['weighted', 'bodyweight']),
   defaultSets: finiteNumber,
   defaultReps: finiteNumber,
+  defaultRepsBySet: z.array(z.number().int().min(1).max(100)).max(64).optional(),
   defaultWeight: finiteNumber.optional(),
+  restBetweenSetsSeconds: z.number().int().min(0).max(3600).optional(),
+  restAfterExerciseSeconds: z.number().int().min(0).max(3600).optional(),
   order: finiteNumber,
 }).passthrough();
 
 const WorkoutTemplateSchema = z.object({
   id: safeId,
-  category: z.enum(['push', 'pull', 'legs']),
+  name: safeString(128).optional(),
+  category: z.enum(['push', 'pull', 'legs', 'custom']),
   templateType: z.enum(['weighted', 'bodyweight']),
   exercises: z.array(TemplateExerciseSchema).max(256),
   lastModified: safeDate,
@@ -129,14 +133,20 @@ const LoggedExerciseSchema = z.object({
   name: safeString(),
   type: z.enum(['weighted', 'bodyweight']),
   sets: z.array(ExerciseSetSchema).max(64),
+  restBetweenSetsSeconds: z.number().int().min(0).max(3600).optional(),
+  restAfterExerciseSeconds: z.number().int().min(0).max(3600).optional(),
   notes: safeString(MAX_LONG_STRING).optional(),
 }).passthrough();
 
 const WorkoutLogSchema = z.object({
   id: safeId,
-  category: z.enum(['push', 'pull', 'legs']),
+  templateId: safeId.optional(),
+  templateName: safeString(128).optional(),
+  category: z.enum(['push', 'pull', 'legs', 'custom']),
   templateType: z.enum(['weighted', 'bodyweight']),
   date: safeDate,
+  durationSeconds: z.number().int().nonnegative().optional(),
+  startedAt: safeDate.optional(),
   exercises: z.array(LoggedExerciseSchema).max(128),
   notes: safeString(MAX_LONG_STRING).optional(),
 }).passthrough();
@@ -147,11 +157,18 @@ const WorkoutDataSchema = z.object({
 }).passthrough();
 
 const ActiveWorkoutSessionSchema = z.object({
-  category: z.enum(['push', 'pull', 'legs']),
+  templateId: safeId.optional(),
+  category: z.enum(['push', 'pull', 'legs', 'custom']),
   templateType: z.enum(['weighted', 'bodyweight']),
   exercises: z.array(LoggedExerciseSchema).max(128),
   notes: safeString(MAX_LONG_STRING),
   startedAt: safeDate,
+  restTimer: z.object({
+    notified: z.boolean().optional(),
+    endsAt: finiteNumber,
+    exerciseId: safeId,
+    kind: z.enum(['set', 'exercise']),
+  }).optional(),
 }).passthrough();
 
 export const AppDataSchema = z.object({

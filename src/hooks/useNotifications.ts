@@ -181,7 +181,7 @@ export function useNotifications() {
       setState(prev => ({ ...prev, ...newState, permission }));
       saveSettings(newState);
 
-      new Notification('Ballast Reminders Enabled', {
+      new Notification('Liftlog Reminders Enabled', {
         body: 'You\'ll be notified at meal times!',
         icon: '/favicon.svg',
         tag: 'confirmation',
@@ -473,7 +473,7 @@ export function useNotifications() {
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       try {
         const registration = await navigator.serviceWorker.ready;
-        await registration.showNotification('Ballast Test', {
+        await registration.showNotification('Liftlog Test', {
           body: 'Notifications are working! You will receive meal reminders.',
           icon: '/favicon.svg',
           badge: '/favicon.svg',
@@ -487,7 +487,7 @@ export function useNotifications() {
 
     // Fallback to regular notification
     try {
-      new Notification('Ballast Test', {
+      new Notification('Liftlog Test', {
         body: 'Notifications are working! You will receive meal reminders.',
         icon: '/favicon.svg',
         tag: 'test-notification',

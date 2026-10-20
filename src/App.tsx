@@ -201,21 +201,10 @@ function App() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">
-                <span className="text-gradient">Ball</span>
-                <span className="text-text-primary">ast</span>
+                <span className="text-gradient">Lift</span>
+                <span className="text-text-primary">log</span>
               </h1>
-              <p className="text-text-muted text-xs">
-                by{' '}
-                <a
-                  href="https://studionope.nl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-accent-primary transition-colors"
-                >
-                  Studio N.O.P.E.
-                </a>
-                {' · Summer 2026'}
-              </p>
+              <p className="text-text-muted text-xs">Your workouts, your progress.</p>
             </div>
             <div className="flex items-center gap-2">
               {data.streak.currentStreak > 0 && (

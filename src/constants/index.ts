@@ -177,12 +177,14 @@ export const CATEGORY_LABELS = {
 
 // PPL Workout Constants
 export const PPL_CATEGORY_COLORS: Record<WorkoutCategory, string> = {
+  custom: '#0070f3',
   push: '#ee5555', // NOPE red
   pull: '#0070f3', // NOPE blue
   legs: '#00a67e'  // NOPE green
 };
 
 export const PPL_CATEGORY_LABELS: Record<WorkoutCategory, string> = {
+  custom: 'Routine',
   push: 'Push',
   pull: 'Pull',
   legs: 'Legs'

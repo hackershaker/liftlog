@@ -124,8 +124,8 @@ export interface UserProfile {
 // Navigation
 export type TabName = 'dashboard' | 'weight' | 'measurements' | 'strength' | 'skills' | 'recipes' | 'workouts';
 
-// Workout tracking (Push/Pull/Legs)
-export type WorkoutCategory = 'push' | 'pull' | 'legs';
+// Keep legacy categories for existing backups; new routines use 'custom'.
+export type WorkoutCategory = 'push' | 'pull' | 'legs' | 'custom';
 
 export interface TemplateExercise {
   id: string;
@@ -133,7 +133,10 @@ export interface TemplateExercise {
   type: 'weighted' | 'bodyweight';
   defaultSets: number;
   defaultReps: number;
+  defaultRepsBySet?: number[];
   defaultWeight?: number; // kg, only for weighted
+  restBetweenSetsSeconds?: number;
+  restAfterExerciseSeconds?: number;
   order: number;
 }
 
@@ -141,6 +144,7 @@ export type TemplateType = 'weighted' | 'bodyweight';
 
 export interface WorkoutTemplate {
   id: string;
+  name?: string;
   category: WorkoutCategory;
   templateType: TemplateType;
   exercises: TemplateExercise[];
@@ -161,14 +165,20 @@ export interface LoggedExercise {
   name: string;
   type: 'weighted' | 'bodyweight';
   sets: ExerciseSet[];
+  restBetweenSetsSeconds?: number;
+  restAfterExerciseSeconds?: number;
   notes?: string; // Per-exercise notes
 }
 
 export interface WorkoutLog {
   id: string;
+  templateId?: string;
+  templateName?: string;
   category: WorkoutCategory;
   templateType: TemplateType;
   date: string; // ISO date
+  durationSeconds?: number;
+  startedAt?: string;
   exercises: LoggedExercise[];
   notes?: string;
 }
@@ -180,9 +190,18 @@ export interface WorkoutData {
 
 // Active workout session (persisted while in progress)
 export interface ActiveWorkoutSession {
+  templateId?: string;
   category: WorkoutCategory;
   templateType: TemplateType;
   exercises: LoggedExercise[];
   notes: string;
   startedAt: string; // ISO date string
+  restTimer?: WorkoutRestTimer;
+}
+
+export interface WorkoutRestTimer {
+  notified?: boolean;
+  endsAt: number;
+  exerciseId: string;
+  kind: 'set' | 'exercise';
 }

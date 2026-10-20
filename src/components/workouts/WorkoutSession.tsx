@@ -1,8 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Save, Clock, Edit3, X, ChevronDown, ChevronUp, Check, Plus, Dumbbell, User } from 'lucide-react';
-import { WorkoutTemplate, WorkoutLog, LoggedExercise, WorkoutCategory, TemplateType, TemplateExercise, ActiveWorkoutSession } from '../../types';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Save, Clock, Edit3, X, ChevronDown, ChevronUp, Plus, Dumbbell, User } from 'lucide-react';
+import { WorkoutTemplate, WorkoutLog, LoggedExercise, WorkoutCategory, TemplateType, TemplateExercise, ActiveWorkoutSession, WorkoutRestTimer } from '../../types';
 import { PPL_CATEGORY_COLORS } from '../../constants';
 import ExerciseCard from './ExerciseCard';
+import { elapsedSeconds, formatDuration, nextRestTimer } from '../../utils/workoutTiming';
+import { restAudio } from '../../utils/restAudio';
 
 interface CustomExerciseForm {
   name: string;
@@ -19,6 +22,7 @@ interface WorkoutSessionProps {
   logs: WorkoutLog[];
   onSave: (log: WorkoutLog) => void;
   onEditTemplate: () => void;
+  onCancel: () => void;
   activeWorkout?: ActiveWorkoutSession;
   onUpdateActiveWorkout: (activeWorkout: ActiveWorkoutSession | undefined) => void;
 }
@@ -38,13 +42,46 @@ const formatDate = (dateStr: string) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-export default function WorkoutSession({ category, templateType, template, logs, onSave, onEditTemplate, activeWorkout, onUpdateActiveWorkout }: WorkoutSessionProps) {
-  // Find the last workout for this category and template type
+export default function WorkoutSession({ category, templateType, template, logs, onSave, onEditTemplate, onCancel, activeWorkout, onUpdateActiveWorkout }: WorkoutSessionProps) {
+  const [startedAt] = useState(() => activeWorkout?.startedAt || new Date().toISOString());
+  const [now, setNow] = useState(() => Date.now());
+  const [restTimer, setRestTimer] = useState<WorkoutRestTimer | undefined>(activeWorkout?.restTimer);
+  const [soundNotice, setSoundNotice] = useState('');
+  const lastAlertedTimer = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!restTimer || restTimer.notified || now < restTimer.endsAt) return;
+    const key = `${restTimer.exerciseId}-${restTimer.kind}-${restTimer.endsAt}`;
+    if (lastAlertedTimer.current === key) return;
+    lastAlertedTimer.current = key;
+    const played = restAudio.play();
+    setRestTimer({ ...restTimer, notified: true });
+    if (!played) setSoundNotice('Tap Test Sound to enable alerts.');
+  }, [now, restTimer]);
+
+  const testSound = () => {
+    void restAudio.unlock().then(ready => {
+      setSoundNotice(ready && restAudio.play() ? 'Sound enabled.' : 'Sound unavailable. Check your browser and volume.');
+    });
+  };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const refreshClock = () => setNow(Date.now());
+    window.addEventListener('focus', refreshClock);
+    document.addEventListener('visibilitychange', refreshClock);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshClock);
+      document.removeEventListener('visibilitychange', refreshClock);
+    };
+  }, []);
+  // Match by routine ID, with compatibility for logs saved before routine IDs existed.
   const lastWorkout = useMemo(() => {
     return logs
-      .filter(l => l.category === category && l.templateType === templateType)
+      .filter(l => l.templateId ? l.templateId === template.id : template.category !== 'custom' && l.category === category && l.templateType === templateType)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-  }, [logs, category, templateType]);
+  }, [logs, category, templateType, template.id]);
 
   // Extract unique exercise names from all workout history (for autocomplete)
   const historicExercises = useMemo(() => {
@@ -69,7 +106,11 @@ export default function WorkoutSession({ category, templateType, template, logs,
   const [currentExercises, setCurrentExercises] = useState<LoggedExercise[]>(() => {
     // Restore from persisted active workout if available
     if (activeWorkout) {
-      return activeWorkout.exercises;
+      return activeWorkout.exercises.map(e => {
+        const source = template.exercises.find(t => t.id === e.exerciseId);
+        return { ...e, restBetweenSetsSeconds: e.restBetweenSetsSeconds ?? source?.restBetweenSetsSeconds ?? 0,
+          restAfterExerciseSeconds: e.restAfterExerciseSeconds ?? source?.restAfterExerciseSeconds ?? 0 };
+      });
     }
     // Otherwise initialize from template
     return template.exercises.map(te => ({
@@ -77,9 +118,11 @@ export default function WorkoutSession({ category, templateType, template, logs,
       exerciseId: te.id,
       name: te.name,
       type: te.type,
+      restBetweenSetsSeconds: te.restBetweenSetsSeconds ?? 0,
+      restAfterExerciseSeconds: te.restAfterExerciseSeconds ?? 0,
       sets: Array.from({ length: te.defaultSets }, (_, i) => ({
         setNumber: i + 1,
-        reps: te.defaultReps,
+        reps: te.defaultRepsBySet?.[i] ?? te.defaultReps,
         weight: te.type === 'weighted' ? te.defaultWeight : undefined,
         completed: false
       }))
@@ -89,7 +132,6 @@ export default function WorkoutSession({ category, templateType, template, logs,
   const [notes, setNotes] = useState(activeWorkout?.notes || '');
   const [showNotes, setShowNotes] = useState(!!activeWorkout?.notes);
   const [lastWorkoutExpanded, setLastWorkoutExpanded] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [showExerciseSuggestions, setShowExerciseSuggestions] = useState(false);
   const [newExercise, setNewExercise] = useState<CustomExerciseForm>({
@@ -104,23 +146,25 @@ export default function WorkoutSession({ category, templateType, template, logs,
 
   // Persist workout state whenever it changes (survives tab switches)
   useEffect(() => {
-    // Check if any work has been done (any sets modified from default or notes added)
-    const hasAnyProgress = currentExercises.some(e =>
-      e.sets.some(s => s.completed) || e.notes
-    ) || notes.length > 0;
-
-    if (hasAnyProgress) {
-      onUpdateActiveWorkout({
-        category,
-        templateType,
-        exercises: currentExercises,
-        notes,
-        startedAt: activeWorkout?.startedAt || new Date().toISOString()
-      });
-    }
-  }, [currentExercises, notes, category, templateType]);
+    onUpdateActiveWorkout({
+      templateId: template.id,
+      category,
+      templateType,
+      exercises: currentExercises,
+      notes,
+      startedAt,
+      restTimer,
+    });
+  }, [currentExercises, notes, category, templateType, template.id, startedAt, restTimer]);
 
   const handleExerciseChange = (index: number, exercise: LoggedExercise) => {
+    const previous = currentExercises[index];
+    const completionChanged = exercise.sets.some((s, i) => s.completed !== previous.sets[i]?.completed);
+    if (completionChanged) {
+      void restAudio.unlock();
+      setRestTimer(nextRestTimer(previous, exercise, currentExercises.filter((_, i) => i !== index)));
+      setNow(Date.now());
+    }
     const newExercises = [...currentExercises];
     newExercises[index] = exercise;
     setCurrentExercises(newExercises);
@@ -167,6 +211,7 @@ export default function WorkoutSession({ category, templateType, template, logs,
 
   const handleRemoveExercise = (index: number) => {
     const exercise = currentExercises[index];
+    if (restTimer?.exerciseId === exercise.id) setRestTimer(undefined);
     // Also remove from custom templates if it exists
     if (customTemplates.has(exercise.exerciseId)) {
       setCustomTemplates(prev => {
@@ -176,29 +221,6 @@ export default function WorkoutSession({ category, templateType, template, logs,
       });
     }
     setCurrentExercises(currentExercises.filter((_, i) => i !== index));
-  };
-
-  const resetForm = () => {
-    setCurrentExercises(
-      template.exercises.map(te => ({
-        id: generateId(),
-        exerciseId: te.id,
-        name: te.name,
-        type: te.type,
-        sets: Array.from({ length: te.defaultSets }, (_, i) => ({
-          setNumber: i + 1,
-          reps: te.defaultReps,
-          weight: te.type === 'weighted' ? te.defaultWeight : undefined,
-          completed: false
-        }))
-      }))
-    );
-    setNotes('');
-    setShowNotes(false);
-    setCustomTemplates(new Map());
-    setShowAddExercise(false);
-    // Clear persisted active workout
-    onUpdateActiveWorkout(undefined);
   };
 
   // Get template for exercise (from real template or custom templates)
@@ -231,23 +253,19 @@ export default function WorkoutSession({ category, templateType, template, logs,
 
     const log: WorkoutLog = {
       id: generateId(),
+      templateId: template.id,
+      templateName: template.name,
       category,
       templateType,
       date: new Date().toISOString().split('T')[0],
+      startedAt,
+      durationSeconds: elapsedSeconds(startedAt),
       exercises: currentExercises,
       notes: notes || undefined
     };
 
     onSave(log);
 
-    // Show success feedback
-    setShowSuccess(true);
-
-    // Reset form and hide success after delay
-    setTimeout(() => {
-      setShowSuccess(false);
-      resetForm();
-    }, 2000);
   };
 
   // Calculate progress
@@ -261,35 +279,47 @@ export default function WorkoutSession({ category, templateType, template, logs,
   };
 
   const categoryColor = PPL_CATEGORY_COLORS[category];
+  const restRemaining = restTimer ? Math.max(0, Math.ceil((restTimer.endsAt - now) / 1000)) : 0;
+  const restingExercise = currentExercises.find(e => e.id === restTimer?.exerciseId);
+  const restBanner = restTimer && (
+    <div data-testid="rest-banner" className="fixed inset-x-0 top-0 z-[45] border-b border-accent-primary/40 bg-bg-primary/95 backdrop-blur-lg shadow-lg" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="max-w-lg mx-auto px-4 py-3 space-y-1">
+        <p className="text-sm font-medium truncate">{restTimer.kind === 'exercise' ? 'Rest before next exercise' : 'Rest between sets'}{restingExercise ? ` · ${restingExercise.name}` : ''}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p role="timer" aria-label="Rest time remaining" className="text-4xl font-display font-bold tabular-nums text-accent-primary">{formatDuration(restRemaining)}</p>
+          <div className="flex gap-2">
+            <button className="px-3 py-2 rounded-lg bg-bg-tertiary text-text-muted text-sm" onClick={testSound}>Test Sound</button>
+            <button className="px-3 py-2 rounded-lg bg-accent-primary/20 text-accent-primary text-sm" onClick={() => setRestTimer(undefined)}>{restRemaining > 0 ? 'Skip Rest' : 'Dismiss'}</button>
+          </div>
+        </div>
+        {restRemaining === 0 && <p role="status" className="text-accent-primary text-sm">Rest complete. Ready for your next set or exercise.</p>}
+        {soundNotice && <p role="status" className="text-xs text-text-muted">{soundNotice}</p>}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Success overlay */}
-      {showSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-bg-secondary rounded-2xl p-8 flex flex-col items-center gap-4 shadow-xl animate-slide-up">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: categoryColor }}
-            >
-              <Check size={32} className="text-white" />
-            </div>
-            <h3 className="font-display text-xl font-bold text-text-primary">
-              Workout Complete!
-            </h3>
-            <p className="text-text-muted text-sm">
-              {completedSets} sets logged successfully
-            </p>
-          </div>
+      {restTimer && (document.body ? createPortal(restBanner, document.body) : restBanner)}
+      <div className="card p-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs text-text-muted flex items-center gap-1"><Clock size={14} />Workout time</p>
+          <p className="font-display text-2xl font-bold tabular-nums" role="timer" aria-label="Workout elapsed time">{formatDuration(elapsedSeconds(startedAt, now))}</p>
+          <p className="text-xs text-text-muted">Includes rest and time away from this screen.</p>
+          {!restTimer && <button className="text-xs text-accent-primary py-1" onClick={testSound}>Test Sound</button>}
+          <p className="text-xs text-text-muted">Keep this screen open for sound alerts.</p>
+          {!restTimer && soundNotice && <p role="status" className="text-xs text-text-muted">{soundNotice}</p>}
         </div>
-      )}
-
+        <button className="px-3 py-2 rounded-lg bg-accent-danger/10 text-accent-danger" onClick={() => {
+          if (confirm('Cancel this workout? All progress and workout time will be discarded. Nothing will be added to history.')) onCancel();
+        }}>Cancel Workout</button>
+      </div>
       {/* Header with last workout info */}
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-display text-lg font-bold text-text-primary">
-              {category.charAt(0).toUpperCase() + category.slice(1)} Day
+              {template.name || `${category.charAt(0).toUpperCase() + category.slice(1)} ${templateType}`}
             </h2>
             {lastWorkout ? (
               <p className="text-sm text-text-muted flex items-center gap-1">
@@ -297,7 +327,7 @@ export default function WorkoutSession({ category, templateType, template, logs,
                 Last workout: {formatDate(lastWorkout.date)}
               </p>
             ) : (
-              <p className="text-sm text-text-muted">First workout for this category!</p>
+              <p className="text-sm text-text-muted">First workout for this routine!</p>
             )}
           </div>
           <button
@@ -305,7 +335,7 @@ export default function WorkoutSession({ category, templateType, template, logs,
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-tertiary text-text-muted hover:text-text-primary hover:bg-bg-secondary transition-colors"
           >
             <Edit3 size={16} />
-            <span className="text-sm">Edit Template</span>
+            <span className="text-sm">Edit Routine</span>
           </button>
         </div>
 
@@ -425,11 +455,14 @@ export default function WorkoutSession({ category, templateType, template, logs,
               <input
                 type="text"
                 value={newExercise.name}
+                onFocus={(e) => {
+                  e.currentTarget.select();
+                  setShowExerciseSuggestions(true);
+                }}
                 onChange={(e) => {
                   setNewExercise({ ...newExercise, name: e.target.value });
                   setShowExerciseSuggestions(true);
                 }}
-                onFocus={() => setShowExerciseSuggestions(true)}
                 placeholder="Exercise name"
                 className="w-full"
                 autoFocus

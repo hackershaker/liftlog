@@ -17,6 +17,8 @@ const { elapsedSeconds, formatDuration, nextRestTimer } = require('../src/utils/
 const { AppDataSchema } = require('../src/types/schema.ts');
 const { INITIAL_WORKOUT_DATA } = require('../src/constants/index.ts');
 const { createRestAudio, restAudio } = require('../src/utils/restAudio.ts');
+const { recentWorkoutDays } = require('../src/utils/recentWorkouts.ts');
+const RecentWorkouts = require('../src/components/RecentWorkouts.tsx').default;
 
 const template = {
   id: 'chest-1', name: 'Chest 1', category: 'custom', templateType: 'weighted', lastModified: '2026-10-18',
@@ -293,6 +295,36 @@ test('audio is unlocked on a gesture, generates three short tones, and fails gra
     assert.equal(stopped, 3);
     assert.equal(disconnected, 6);
   } finally { env.restore(); }
+});
+
+test('recent workouts includes today and six preceding local dates with last workout calendar-day gap', () => {
+  const now = new Date(2026, 9, 23, 0, 5);
+  const result = recentWorkoutDays(['2026-10-17', '2026-10-21', '2026-10-21', '2026-10-25', 'bad-date', '2026-02-30'], now);
+  assert.deepEqual(result.days.map(d => d.date), ['2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+  assert.deepEqual(result.days.filter(d => d.workedOut).map(d => d.date), ['2026-10-17', '2026-10-21']);
+  assert.equal(result.days[6].weekday, '금');
+  assert.equal(result.days[6].isToday, true);
+  assert.equal(result.daysSinceLastWorkout, 2);
+  assert.equal(recentWorkoutDays(['2026-10-23'], now).daysSinceLastWorkout, 0);
+  assert.equal(recentWorkoutDays(['2026-10-01'], now).daysSinceLastWorkout, 22);
+  assert.equal(recentWorkoutDays([], now).daysSinceLastWorkout, null);
+  const newYear = recentWorkoutDays(['2025-12-31'], new Date(2026, 0, 2, 0, 1));
+  assert.equal(newYear.days[0].date, '2025-12-27');
+  assert.equal(newYear.daysSinceLastWorkout, 2);
+});
+
+test('recent workout card renders seven weekdays, a blue circle for completed days, and empty state', () => {
+  const env = environment(); let renderer;
+  try {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    act(() => { renderer = create(React.createElement(RecentWorkouts, { workoutDates: [today] })); });
+    assert.equal(renderer.root.findAllByType('li').length, 7);
+    assert.equal(renderer.root.findAll(n => n.type === 'span' && n.props.className.includes('bg-blue-500')).length, 1);
+    assert.ok(text(renderer.root).includes('마지막 운동으로부터 0일'));
+    act(() => renderer.update(React.createElement(RecentWorkouts, { workoutDates: [] })));
+    assert.ok(text(renderer.root).includes('아직 운동 기록이 없습니다.'));
+  } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
 });
 
 test('time formatting and rest edge cases; new and legacy backups remain compatible', () => {

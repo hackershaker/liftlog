@@ -1,5 +1,6 @@
 import { AppData, TabName, Phase } from '../types';
 import { DEFAULT_SKILL_DEFINITIONS } from '../constants';
+import RecentWorkouts from './RecentWorkouts';
 import {
   TrendingDown,
   TrendingUp,
@@ -63,6 +64,10 @@ export default function Dashboard({ data, phases, onNavigate, onOpenStreakCalend
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <RecentWorkouts workoutDates={[
+        ...data.workouts.logs.map(log => log.date),
+        ...(workoutStreak?.loggedDates ?? []),
+      ]} />
       {/* Phase Card */}
       {currentPhase && (
         <div className="card relative overflow-hidden">

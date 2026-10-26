@@ -1,5 +1,10 @@
 import { useRef, useState } from 'react';
-import { X, Plus, Trash2, ChevronUp, ChevronDown, Dumbbell, User, Save, FileText } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Plus, Trash2, GripVertical, Dumbbell, User, Save, FileText } from 'lucide-react';
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import SortableExercise from './SortableExercise';
 import { WorkoutTemplate, TemplateExercise } from '../../types';
 import { PPL_CATEGORY_COLORS, PPL_CATEGORY_LABELS } from '../../constants';
 
@@ -20,6 +25,14 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState(template.notes || '');
   const [showNotes, setShowNotes] = useState(!!template.notes);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const suppressClickUntil = useRef(0);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: 350, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 350, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const draggedExercise = exercises.find(e => e.id === draggedId);
 
   const categoryColor = PPL_CATEGORY_COLORS[template.category];
 
@@ -87,22 +100,16 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
     }
   };
 
-  const handleMoveUp = (index: number) => {
-    if (index === 0) return;
-    const newExercises = [...exercises];
-    [newExercises[index - 1], newExercises[index]] = [newExercises[index], newExercises[index - 1]];
-    // Update order numbers
-    newExercises.forEach((e, i) => e.order = i + 1);
-    setExercises(newExercises);
-  };
-
-  const handleMoveDown = (index: number) => {
-    if (index === exercises.length - 1) return;
-    const newExercises = [...exercises];
-    [newExercises[index], newExercises[index + 1]] = [newExercises[index + 1], newExercises[index]];
-    // Update order numbers
-    newExercises.forEach((e, i) => e.order = i + 1);
-    setExercises(newExercises);
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setDraggedId(null);
+    suppressClickUntil.current = Date.now() + 500;
+    if (!over || active.id === over.id) return;
+    setExercises(previous => {
+      const from = previous.findIndex(e => e.id === active.id);
+      const to = previous.findIndex(e => e.id === over.id);
+      if (from < 0 || to < 0) return previous;
+      return arrayMove(previous, from, to).map((exercise, i) => ({ ...exercise, order: i + 1 }));
+    });
   };
 
   const handleSave = () => {
@@ -110,12 +117,21 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
     const updatedTemplate: WorkoutTemplate = {
       ...template,
       name: name.trim(),
-      exercises,
+      exercises: exercises.map((exercise, i) => ({ ...exercise, order: i + 1 })),
       lastModified: new Date().toISOString(),
       notes: notes.trim() || undefined
     };
     onSave(updatedTemplate);
   };
+
+  const dragOverlay = (
+    <DragOverlay zIndex={60} dropAnimation={null}>
+      {draggedExercise && <div className="card p-4 shadow-xl ring-2 ring-blue-500 bg-bg-primary flex items-center gap-3 cursor-grabbing">
+        <GripVertical size={24} className="text-blue-500 shrink-0" />
+        <div><p className="font-medium text-text-primary">{draggedExercise.name}</p><p className="text-xs text-blue-500">원하는 위치에 놓으세요</p></div>
+      </div>}
+    </DragOverlay>
+  );
 
   return (
     <div className="fixed inset-0 z-50">
@@ -189,12 +205,22 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
             )}
           </div>
 
-          {exercises.map((exercise, index) => {
+          <p className="text-xs text-text-muted">운동 카드를 꾹 누른 뒤 위아래로 드래그해 순서를 바꾸세요.</p>
+          <DndContext sensors={sensors} collisionDetection={closestCenter}
+            onDragStart={({ active }) => { setDraggedId(String(active.id)); suppressClickUntil.current = Infinity; }}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => { setDraggedId(null); suppressClickUntil.current = Date.now() + 500; }}>
+          <SortableContext items={exercises.map(e => e.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-3" onClickCapture={event => {
+            if (Date.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); }
+          }}>
+          {exercises.map((exercise) => {
             const isEditing = editingExercise === exercise.id;
 
             return (
-              <div
+              <SortableExercise
                 key={exercise.id}
+                id={exercise.id} name={exercise.name} disabled={editingExercise !== null}
                 className={`card p-4 transition-all ${isEditing ? 'ring-2 ring-accent-primary' : ''}`}
               >
                 {isEditing ? (
@@ -325,23 +351,7 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
                 ) : (
                   // View mode
                   <div className="flex items-center gap-3">
-                    {/* Move buttons */}
-                    <div className="flex flex-col">
-                      <button
-                        onClick={() => handleMoveUp(index)}
-                        disabled={index === 0}
-                        className="p-1 text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors"
-                      >
-                        <ChevronUp size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleMoveDown(index)}
-                        disabled={index === exercises.length - 1}
-                        className="p-1 text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors"
-                      >
-                        <ChevronDown size={14} />
-                      </button>
-                    </div>
+                    <GripVertical size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
 
                     {/* Exercise icon */}
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -365,6 +375,7 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
 
                     {/* Delete button */}
                     <button
+                      data-no-drag
                       onClick={() => handleDeleteExercise(exercise.id)}
                       className="p-2 rounded-lg text-text-muted hover:text-accent-danger hover:bg-accent-danger/10 transition-colors"
                     >
@@ -372,9 +383,13 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
                     </button>
                   </div>
                 )}
-              </div>
+              </SortableExercise>
             );
           })}
+          </div>
+          </SortableContext>
+          {typeof document !== 'undefined' && document.body ? createPortal(dragOverlay, document.body) : dragOverlay}
+          </DndContext>
 
           {/* Add exercise button */}
           <button

@@ -19,6 +19,8 @@ const { INITIAL_WORKOUT_DATA } = require('../src/constants/index.ts');
 const { createRestAudio, restAudio } = require('../src/utils/restAudio.ts');
 const { recentWorkoutDays } = require('../src/utils/recentWorkouts.ts');
 const RecentWorkouts = require('../src/components/RecentWorkouts.tsx').default;
+const { DndContext } = require('@dnd-kit/core');
+const SortableExercise = require('../src/components/workouts/SortableExercise.tsx').default;
 
 const template = {
   id: 'chest-1', name: 'Chest 1', category: 'custom', templateType: 'weighted', lastModified: '2026-10-18',
@@ -325,6 +327,42 @@ test('recent workout card renders seven weekdays, a blue circle for completed da
     act(() => renderer.update(React.createElement(RecentWorkouts, { workoutDates: [] })));
     assert.ok(text(renderer.root).includes('아직 운동 기록이 없습니다.'));
   } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
+});
+
+test('long-press sorting moves exercises in both directions, saves order and keeps exercise settings', () => {
+  let renderer, saved;
+  const initial = { ...template, exercises: [...structuredClone(template.exercises), { ...template.exercises[1], id: 'squat', name: 'Squat', order: 3 }] };
+  act(() => { renderer = create(React.createElement(Editor, { template: initial, onSave: value => saved = value, onClose() {} })); });
+  try {
+    const context = () => renderer.root.findByType(DndContext.type || DndContext);
+    const start = id => act(() => context().props.onDragStart({ active: { id } }));
+    const drop = (id, target) => act(() => context().props.onDragEnd({ active: { id }, over: target ? { id: target } : null }));
+    const ids = () => renderer.root.findAllByType(SortableExercise).map(n => n.props.id);
+    const sensors = context().props.sensors;
+    assert.equal(sensors[0].options.activationConstraint.delay, 350);
+    assert.equal(sensors[1].options.activationConstraint.tolerance, 8);
+    start('bench');
+    drop('bench', 'squat');
+    assert.deepEqual(ids(), ['fly', 'squat', 'bench']);
+    act(() => button(renderer, 'Save Routine').props.onClick());
+    assert.deepEqual(saved.exercises.map(e => e.order), [1, 2, 3]);
+    assert.equal(saved.exercises[2].restBetweenSetsSeconds, 60);
+    assert.equal(saved.exercises[2].defaultWeight, 40);
+    start('bench'); drop('bench', 'fly');
+    assert.deepEqual(ids(), ['bench', 'fly', 'squat']);
+    start('bench');
+    let prevented = false;
+    const list = renderer.root.find(n => n.type === 'div' && typeof n.props.onClickCapture === 'function');
+    list.props.onClickCapture({ preventDefault() { prevented = true; }, stopPropagation() {} });
+    assert.equal(prevented, true);
+    act(() => context().props.onDragCancel());
+    assert.deepEqual(ids(), ['bench', 'fly', 'squat']);
+    drop('bench', null);
+    assert.deepEqual(ids(), ['bench', 'fly', 'squat']);
+    assert.deepEqual(initial.exercises.map(e => e.id), ['bench', 'fly', 'squat']);
+    act(() => renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Bench Press'))[0].props.onClick());
+    assert.ok(renderer.root.findAllByType(SortableExercise).every(n => n.props.disabled));
+  } finally { act(() => renderer.unmount()); }
 });
 
 test('time formatting and rest edge cases; new and legacy backups remain compatible', () => {

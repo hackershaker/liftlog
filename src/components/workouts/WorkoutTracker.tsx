@@ -6,6 +6,7 @@ import WorkoutSession from './WorkoutSession';
 import WorkoutHistory from './WorkoutHistory';
 import TemplateEditor from './TemplateEditor';
 import { restAudio } from '../../utils/restAudio';
+import { updateRoutineFromWorkout } from '../../utils/updateRoutine';
 
 interface WorkoutTrackerProps {
   workouts: WorkoutData;
@@ -92,7 +93,8 @@ export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkou
 
 
   const handleSaveWorkout = (log: WorkoutLog) => {
-    onUpdateWorkouts({ ...workouts, logs: [...workouts.logs, log] });
+    onUpdateWorkouts({ ...workouts, logs: [...workouts.logs, log],
+      templates: workouts.templates.map(template => updateRoutineFromWorkout(template, log)) });
     onUpdateActiveWorkout(undefined);
     updateWorkoutStreak(log.date);
     setSavedWorkout(true);
@@ -120,7 +122,7 @@ export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkou
           restBetweenSetsSeconds: e.restBetweenSetsSeconds ?? 0,
           restAfterExerciseSeconds: e.restAfterExerciseSeconds ?? 0,
           sets: Array.from({ length: e.defaultSets }, (_, i) => ({
-            setNumber: i + 1, reps: e.defaultRepsBySet?.[i] ?? e.defaultReps, weight: e.type === 'weighted' ? e.defaultWeight : undefined, completed: false
+            setNumber: i + 1, reps: e.defaultRepsBySet?.[i] ?? e.defaultReps, weight: e.type === 'weighted' ? e.defaultWeightsBySet?.[i] ?? e.defaultWeight : undefined, completed: false
           }))
         })), notes: '', startedAt: new Date().toISOString()
       });

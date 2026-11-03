@@ -123,7 +123,7 @@ export default function WorkoutSession({ category, templateType, template, logs,
       sets: Array.from({ length: te.defaultSets }, (_, i) => ({
         setNumber: i + 1,
         reps: te.defaultRepsBySet?.[i] ?? te.defaultReps,
-        weight: te.type === 'weighted' ? te.defaultWeight : undefined,
+        weight: te.type === 'weighted' ? te.defaultWeightsBySet?.[i] ?? te.defaultWeight : undefined,
         completed: false
       }))
     }));
@@ -637,6 +637,7 @@ export default function WorkoutSession({ category, templateType, template, logs,
       </div>
 
       {/* Save button */}
+      <p className="text-xs text-text-muted">완료 체크한 세트의 횟수와 중량이 다음 루틴에 반영됩니다.</p>
       <button
         onClick={handleSave}
         disabled={completedSets === 0}

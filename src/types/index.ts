@@ -135,6 +135,7 @@ export interface TemplateExercise {
   defaultReps: number;
   defaultRepsBySet?: number[];
   defaultWeight?: number; // kg, only for weighted
+  defaultWeightsBySet?: number[];
   restBetweenSetsSeconds?: number;
   restAfterExerciseSeconds?: number;
   order: number;

@@ -31,7 +31,7 @@ export default function ExerciseCard({ exercise, template, lastExercise, onChang
     const newSet: ExerciseSet = {
       setNumber: newSetNumber,
       reps: template.defaultRepsBySet?.[exercise.sets.length] ?? lastSet?.reps ?? template.defaultReps,
-      weight: isWeighted ? (lastSet?.weight || template.defaultWeight) : undefined,
+      weight: isWeighted ? (template.defaultWeightsBySet?.[exercise.sets.length] ?? lastSet?.weight ?? template.defaultWeight) : undefined,
       completed: false
     };
     onChange({ ...exercise, sets: [...exercise.sets, newSet] });

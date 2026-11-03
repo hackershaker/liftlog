@@ -45,6 +45,7 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
       defaultReps: 10,
       defaultRepsBySet: [10, 10, 10],
       defaultWeight: 20,
+      defaultWeightsBySet: [20, 20, 20],
       restBetweenSetsSeconds: 0,
       restAfterExerciseSeconds: 0,
       order: exercises.length + 1
@@ -55,6 +56,9 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
   };
 
   const handleUpdateExercise = (id: string, updates: Partial<TemplateExercise>) => {
+    if (updates.type === 'bodyweight') {
+      setNumericDrafts(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(`set-weight-${id}-`))));
+    }
     setExercises(exercises.map(e =>
       e.id === id ? { ...e, ...updates } : e
     ));
@@ -66,13 +70,15 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
     if (draft === '') return;
     const count = Math.min(10, Math.max(1, Number(draft)));
     if (count !== exercise.defaultSets) {
-      setNumericDrafts(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(`set-reps-${exercise.id}-`))));
+      setNumericDrafts(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(`set-reps-${exercise.id}-`) && !key.startsWith(`set-weight-${exercise.id}-`))));
     }
     const previous = exercise.defaultRepsBySet;
     handleUpdateExercise(exercise.id, {
       defaultSets: count,
       defaultRepsBySet: Array.from({ length: count }, (_, i) =>
         previous?.[i] ?? previous?.[previous.length - 1] ?? exercise.defaultReps),
+      defaultWeightsBySet: exercise.type === 'weighted' ? Array.from({ length: count }, (_, i) =>
+        exercise.defaultWeightsBySet?.[i] ?? exercise.defaultWeightsBySet?.[exercise.defaultWeightsBySet.length - 1] ?? exercise.defaultWeight ?? 0) : undefined,
     });
   };
 
@@ -91,6 +97,17 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
       delete next[id];
       return next;
     });
+  };
+
+  const handleSetWeightChange = (exercise: TemplateExercise, index: number, value: string) => {
+    if (!/^\d*(\.\d*)?$/.test(value)) return;
+    setNumericDrafts(prev => ({ ...prev, [`set-weight-${exercise.id}-${index}`]: value }));
+    if (value === '' || value === '.') return;
+    const weight = Number(value);
+    if (!Number.isFinite(weight)) return;
+    const weights = Array.from({ length: exercise.defaultSets }, (_, i) => exercise.defaultWeightsBySet?.[i] ?? exercise.defaultWeight ?? 0);
+    weights[index] = weight;
+    handleUpdateExercise(exercise.id, { defaultWeightsBySet: weights, defaultWeight: weights[0] });
   };
 
   const handleDeleteExercise = (id: string) => {
@@ -263,7 +280,7 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
                           Weighted
                         </button>
                         <button
-                          onClick={() => handleUpdateExercise(exercise.id, { type: 'bodyweight', defaultWeight: undefined })}
+                          onClick={() => handleUpdateExercise(exercise.id, { type: 'bodyweight', defaultWeight: undefined, defaultWeightsBySet: undefined })}
                           className={`flex-1 py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-all ${
                             exercise.type === 'bodyweight'
                               ? 'bg-accent-info/20 text-accent-info border border-accent-info/50'
@@ -292,33 +309,28 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
                           className="w-full text-center"
                         />
                       </div>
-                      {exercise.type === 'weighted' && (
-                        <div>
-                          <label className="text-xs text-text-muted mb-1 block">Weight (kg)</label>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.5"
-                            min="0"
-                            value={exercise.defaultWeight || ''}
-                            onChange={(e) => handleUpdateExercise(exercise.id, { defaultWeight: parseFloat(e.target.value) || 0 })}
-                            className="w-full text-center"
-                          />
-                        </div>
-                      )}
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-xs text-text-muted">Reps per set</p>
+                      <p className="text-xs text-text-muted">{exercise.type === 'weighted' ? 'Reps & weight per set' : 'Reps per set'}</p>
                       {Array.from({ length: exercise.defaultSets }, (_, setIndex) => (
-                        <div key={setIndex} className="flex items-center gap-3 rounded-lg bg-bg-tertiary p-3">
+                        <div key={setIndex} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg-tertiary p-3">
                           <label htmlFor={`set-reps-${exercise.id}-${setIndex}`} className="flex-1 text-sm text-text-muted">Set {setIndex + 1} reps</label>
                           <input id={`set-reps-${exercise.id}-${setIndex}`} type="text" inputMode="numeric" pattern="[0-9]*"
                             value={numericDrafts[`set-reps-${exercise.id}-${setIndex}`] ?? exercise.defaultRepsBySet?.[setIndex] ?? exercise.defaultReps}
                             onFocus={e => e.currentTarget.select()}
                             onBlur={() => clearNumericDraft(`set-reps-${exercise.id}-${setIndex}`)}
                             onChange={e => handleSetRepsChange(exercise, setIndex, e.target.value)}
-                            className="w-24 text-center" />
+                            className="w-16 text-center" />
+                          {exercise.type === 'weighted' && <div className="flex items-center gap-1">
+                            <label htmlFor={`set-weight-${exercise.id}-${setIndex}`} className="sr-only">Set {setIndex + 1} weight (kg)</label>
+                            <input id={`set-weight-${exercise.id}-${setIndex}`} type="text" inputMode="decimal"
+                              value={numericDrafts[`set-weight-${exercise.id}-${setIndex}`] ?? exercise.defaultWeightsBySet?.[setIndex] ?? exercise.defaultWeight ?? 0}
+                              onFocus={e => e.currentTarget.select()}
+                              onBlur={() => clearNumericDraft(`set-weight-${exercise.id}-${setIndex}`)}
+                              onChange={e => handleSetWeightChange(exercise, setIndex, e.target.value)} className="w-16 text-center" />
+                            <span className="text-xs text-text-muted">kg</span>
+                          </div>}
                         </div>
                       ))}
                     </div>
@@ -368,7 +380,7 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
                       <p className="font-medium text-text-primary">{exercise.name}</p>
                       <p className="text-xs text-text-muted">
                         {exercise.defaultSets} sets · {Array.from({ length: exercise.defaultSets }, (_, i) => exercise.defaultRepsBySet?.[i] ?? exercise.defaultReps).join(' / ')} reps
-                        {exercise.type === 'weighted' && exercise.defaultWeight ? ` @ ${exercise.defaultWeight}kg` : ''}
+                        {exercise.type === 'weighted' ? ` @ ${Array.from({ length: exercise.defaultSets }, (_, i) => exercise.defaultWeightsBySet?.[i] ?? exercise.defaultWeight ?? 0).join(' / ')}kg` : ''}
                       </p>
                       <p className="text-xs text-text-muted">Rest: {exercise.restBetweenSetsSeconds ?? 0}s between sets / {exercise.restAfterExerciseSeconds ?? 0}s after exercise</p>
                     </button>

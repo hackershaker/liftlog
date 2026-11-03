@@ -21,6 +21,7 @@ const { recentWorkoutDays } = require('../src/utils/recentWorkouts.ts');
 const RecentWorkouts = require('../src/components/RecentWorkouts.tsx').default;
 const { DndContext } = require('@dnd-kit/core');
 const SortableExercise = require('../src/components/workouts/SortableExercise.tsx').default;
+const { updateRoutineFromWorkout } = require('../src/utils/updateRoutine.ts');
 
 const template = {
   id: 'chest-1', name: 'Chest 1', category: 'custom', templateType: 'weighted', lastModified: '2026-10-18',
@@ -196,8 +197,10 @@ test('per-set reps follow set count, survive saving and backup, and initialize t
     const app = mountTracker(undefined, threeSets); renderer = app.renderer;
     act(() => button(renderer, 'Start Workout').props.onClick());
     assert.deepEqual(app.data().activeWorkout.exercises[0].sets.map(s => s.reps), [12, 10, 8]);
-    const row = renderer.root.findAllByType(SetRow)[0];
-    act(() => row.props.onChange({ ...row.props.set, completed: true }));
+    for (let i = 0; i < 3; i++) {
+      const row = renderer.root.findAllByType(SetRow)[i];
+      act(() => row.props.onChange({ ...row.props.set, completed: true }));
+    }
     act(() => button(renderer, 'Finish Workout').props.onClick());
     assert.deepEqual(app.data().workouts.logs[0].exercises[0].sets.map(s => s.reps), [12, 10, 8]);
     const backup = { weights: [], measurements: [], strengthPRs: [], skills: [], streak,
@@ -363,6 +366,64 @@ test('long-press sorting moves exercises in both directions, saves order and kee
     act(() => renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Bench Press'))[0].props.onClick());
     assert.ok(renderer.root.findAllByType(SortableExercise).every(n => n.props.disabled));
   } finally { act(() => renderer.unmount()); }
+});
+
+test('per-set weights survive resizing, editing, workout start, completion, restart and backup', () => {
+  const env = environment(); let renderer, saved;
+  try {
+    act(() => { renderer = create(React.createElement(Editor, { template, onSave: value => saved = value, onClose() {} })); });
+    act(() => renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Bench Press'))[0].props.onClick());
+    const change = (id, value) => act(() => renderer.root.findByProps({ id }).props.onChange({ target: { value } }));
+    change('set-weight-bench-0', '');
+    assert.equal(renderer.root.findByProps({ id: 'set-weight-bench-0' }).props.value, '');
+    change('set-weight-bench-0', '0');
+    change('set-weight-bench-1', '42.5');
+    change('set-count-bench', '3');
+    assert.equal(renderer.root.findByProps({ id: 'set-weight-bench-2' }).props.value, 42.5);
+    change('set-count-bench', '2');
+    act(() => button(renderer, 'Save Routine').props.onClick());
+    assert.deepEqual(saved.exercises[0].defaultWeightsBySet, [0, 42.5]);
+    act(() => renderer.unmount()); renderer = undefined;
+    const app = mountTracker(undefined, saved); renderer = app.renderer;
+    act(() => button(renderer, 'Start Workout').props.onClick());
+    assert.deepEqual(app.data().activeWorkout.exercises[0].sets.map(s => s.weight), [0, 42.5]);
+    for (let i = 0; i < 2; i++) {
+      const row = renderer.root.findAllByType(SetRow)[i];
+      act(() => row.props.onChange({ ...row.props.set, reps: 11 - i, weight: i === 0 ? 2.5 : 45, completed: true }));
+    }
+    act(() => button(renderer, 'Finish Workout').props.onClick());
+    const updated = app.data().workouts.templates[0].exercises[0];
+    assert.deepEqual(updated.defaultRepsBySet, [11, 10]);
+    assert.deepEqual(updated.defaultWeightsBySet, [2.5, 45]);
+    assert.equal(updated.defaultSets, 2);
+    assert.equal(updated.restBetweenSetsSeconds, 60);
+    assert.deepEqual(app.data().workouts.templates[0].exercises[1], template.exercises[1]);
+    const backup = { weights: [], measurements: [], strengthPRs: [], skills: [], streak,
+      profile: { name: 'Test', startingWeight: 80, height: 175 }, workouts: app.data().workouts };
+    const parsed = AppDataSchema.parse(JSON.parse(JSON.stringify(backup)));
+    assert.deepEqual(parsed.workouts.templates[0].exercises[0].defaultWeightsBySet, [2.5, 45]);
+    act(() => button(renderer, 'Start Workout').props.onClick());
+    assert.deepEqual(app.data().activeWorkout.exercises[0].sets.map(s => [s.reps, s.weight]), [[11, 2.5], [10, 45]]);
+    const row = renderer.root.findAllByType(SetRow)[0];
+    act(() => row.props.onChange({ ...row.props.set, reps: 20, weight: 100, completed: true }));
+    act(() => button(renderer, 'Cancel Workout').props.onClick());
+    assert.deepEqual(app.data().workouts.templates[0].exercises[0], updated);
+    assert.equal(app.data().workouts.logs.length, 1);
+  } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
+});
+
+test('routine updates apply only to the completed routine and completed sets, keeping legacy compatibility', () => {
+  const log = { templateId: template.id, exercises: [{ exerciseId: 'bench', sets: [
+    { reps: 11, weight: 50, completed: true }, { reps: 99, weight: 100, completed: false },
+  ] }] };
+  const result = updateRoutineFromWorkout(template, log);
+  assert.equal(result.exercises[0].defaultSets, 1);
+  assert.deepEqual(result.exercises[0].defaultRepsBySet, [11]);
+  assert.deepEqual(result.exercises[0].defaultWeightsBySet, [50]);
+  assert.equal(updateRoutineFromWorkout({ ...template, id: 'different' }, log).exercises, template.exercises);
+  assert.equal(template.exercises[0].defaultReps, 10);
+  const legacy = { ...template, category: 'push' };
+  assert.deepEqual(updateRoutineFromWorkout(legacy, { ...log, templateId: undefined, category: 'push', templateType: 'weighted' }).exercises[0].defaultRepsBySet, [11]);
 });
 
 test('time formatting and rest edge cases; new and legacy backups remain compatible', () => {

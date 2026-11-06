@@ -22,6 +22,8 @@ const RecentWorkouts = require('../src/components/RecentWorkouts.tsx').default;
 const { DndContext } = require('@dnd-kit/core');
 const SortableExercise = require('../src/components/workouts/SortableExercise.tsx').default;
 const { updateRoutineFromWorkout } = require('../src/utils/updateRoutine.ts');
+const StreakCalendar = require('../src/components/StreakCalendar.tsx').default;
+const { formatDateISO } = require('../src/hooks/useLocalStorage.ts');
 
 const template = {
   id: 'chest-1', name: 'Chest 1', category: 'custom', templateType: 'weighted', lastModified: '2026-10-18',
@@ -424,6 +426,64 @@ test('routine updates apply only to the completed routine and completed sets, ke
   assert.equal(template.exercises[0].defaultReps, 10);
   const legacy = { ...template, category: 'push' };
   assert.deepEqual(updateRoutineFromWorkout(legacy, { ...log, templateId: undefined, category: 'push', templateType: 'weighted' }).exercises[0].defaultRepsBySet, [11]);
+});
+
+test('workout streak calendar maps November 6 to November 6 in Korea and edits the displayed date', () => {
+  const RealDate = global.Date, originalTZ = process.env.TZ;
+  process.env.TZ = 'Asia/Seoul';
+  const fixed = RealDate.parse('2026-11-06T00:05:00+09:00');
+  global.Date = class extends RealDate { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } };
+  const env = environment();
+  let renderer, updated;
+  try {
+    assert.equal(new Date().getTimezoneOffset(), -540);
+    act(() => { renderer = create(React.createElement(StreakCalendar, {
+      isOpen: true, onClose() {}, loggingStreak: streak,
+      workoutStreak: { ...streak, loggedDates: ['2026-11-06'] },
+      onUpdateLoggingStreak() {}, onUpdateWorkoutStreak: value => updated = value,
+    })); });
+    const cell = day => renderer.root.findAll(n => n.type === 'button' && n.props['data-date'] && n.children.some(child => child.type === 'span' && text(child) === String(day)))[0];
+    assert.equal(cell(6).props['data-date'], '2026-11-06');
+    assert.equal(cell(6).props['data-workout'], true);
+    assert.equal(cell(7).props['data-workout'], false);
+    assert.ok(cell(6).props.className.includes('ring-2'));
+    act(() => renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Workout'))[0].props.onClick());
+    assert.equal(cell(6).props.disabled, false);
+    assert.equal(cell(7).props.disabled, true);
+    act(() => cell(5).props.onClick());
+    assert.ok(updated.loggedDates.includes('2026-11-05'));
+    assert.ok(updated.loggedDates.includes('2026-11-06'));
+    assert.ok(!updated.loggedDates.includes('2026-11-04'));
+    assert.equal(renderer.root.findAll(n => n.type === 'button' && n.props['data-date']).length, 42);
+    act(() => renderer.root.findByProps({ 'aria-label': 'Next month' }).props.onClick());
+    const decemberCells = renderer.root.findAll(n => n.type === 'button' && n.props['data-date']);
+    assert.equal(decemberCells[0].props['data-date'], '2026-11-29');
+    assert.ok(decemberCells.every(n => n.props.disabled));
+    act(() => renderer.root.findByProps({ 'aria-label': 'Previous month' }).props.onClick());
+    assert.equal(cell(6).props['data-workout'], true);
+    act(() => renderer.unmount()); renderer = undefined;
+    const app = mountTracker(); renderer = app.renderer;
+    act(() => button(renderer, 'Start Workout').props.onClick());
+    const row = renderer.root.findAllByType(SetRow)[0];
+    act(() => row.props.onChange({ ...row.props.set, completed: true }));
+    act(() => button(renderer, 'Finish Workout').props.onClick());
+    assert.equal(app.data().workouts.logs[0].date, '2026-11-06');
+    assert.deepEqual(app.data().workoutStreak.loggedDates, ['2026-11-06']);
+  } finally {
+    if (renderer) act(() => renderer.unmount()); env.restore(); global.Date = RealDate;
+    if (originalTZ === undefined) delete process.env.TZ; else process.env.TZ = originalTZ;
+  }
+});
+
+test('date-only storage uses local dates at Korean midnight, month and year boundaries', () => {
+  const originalTZ = process.env.TZ;
+  process.env.TZ = 'Asia/Seoul';
+  try {
+    assert.equal(formatDateISO(new Date('2026-11-06T00:01:00+09:00')), '2026-11-06');
+    assert.equal(formatDateISO(new Date('2026-11-01T00:00:00+09:00')), '2026-11-01');
+    assert.equal(formatDateISO(new Date('2027-01-01T00:00:00+09:00')), '2027-01-01');
+    assert.equal(formatDateISO(new Date('2026-11-06T23:59:00+09:00')), '2026-11-06');
+  } finally { if (originalTZ === undefined) delete process.env.TZ; else process.env.TZ = originalTZ; }
 });
 
 test('time formatting and rest edge cases; new and legacy backups remain compatible', () => {

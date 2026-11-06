@@ -6,6 +6,7 @@ import { PPL_CATEGORY_COLORS } from '../../constants';
 import ExerciseCard from './ExerciseCard';
 import { elapsedSeconds, formatDuration, nextRestTimer } from '../../utils/workoutTiming';
 import { restAudio } from '../../utils/restAudio';
+import { formatDateISO } from '../../hooks/useLocalStorage';
 
 interface CustomExerciseForm {
   name: string;
@@ -257,7 +258,7 @@ export default function WorkoutSession({ category, templateType, template, logs,
       templateName: template.name,
       category,
       templateType,
-      date: new Date().toISOString().split('T')[0],
+      date: formatDateISO(),
       startedAt,
       durationSeconds: elapsedSeconds(startedAt),
       exercises: currentExercises,

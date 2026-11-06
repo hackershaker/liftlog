@@ -44,7 +44,8 @@ export function formatDate(date: string | Date): string {
 }
 
 export function formatDateISO(date: Date = new Date()): string {
-  return date.toISOString().split('T')[0];
+  // Date-only keys must keep the local calendar day; timestamps remain UTC ISO strings.
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export function getDaysBetween(date1: string, date2: string): number {

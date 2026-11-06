@@ -7,6 +7,7 @@ import WorkoutHistory from './WorkoutHistory';
 import TemplateEditor from './TemplateEditor';
 import { restAudio } from '../../utils/restAudio';
 import { updateRoutineFromWorkout } from '../../utils/updateRoutine';
+import { formatDateISO } from '../../hooks/useLocalStorage';
 
 interface WorkoutTrackerProps {
   workouts: WorkoutData;
@@ -45,8 +46,10 @@ export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkou
 
     // Recalculate streak from all logged dates
     const sortedDates = [...datesArray].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today = formatDateISO();
+    const previousDay = new Date();
+    previousDay.setDate(previousDay.getDate() - 1);
+    const yesterday = formatDateISO(previousDay);
 
     let currentStreak = 0;
     let longestStreak = 0;

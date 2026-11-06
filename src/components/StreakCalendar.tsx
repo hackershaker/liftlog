@@ -28,7 +28,9 @@ function calculateStreakFromDates(dates: string[]): { currentStreak: number; lon
   const sortedDates = [...dates].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   const today = formatDateISO(new Date());
-  const yesterday = formatDateISO(new Date(Date.now() - 86400000));
+  const previousDay = new Date();
+  previousDay.setDate(previousDay.getDate() - 1);
+  const yesterday = formatDateISO(previousDay);
 
   let currentStreak = 0;
   let longestStreak = 0;
@@ -119,7 +121,7 @@ export default function StreakCalendar({
     const today = formatDateISO(new Date());
     for (let day = 1; day <= totalDays; day++) {
       const date = formatDateISO(new Date(year, month, day));
-      const isFuture = new Date(date) > new Date(today);
+      const isFuture = date > today;
       days.push({
         date,
         day,
@@ -136,7 +138,7 @@ export default function StreakCalendar({
       days.push({ date, day, isCurrentMonth: false, isToday: false, isFuture: true });
     }
 
-    return days;
+    return days.map(day => ({ ...day, isToday: day.date === today, isFuture: day.date > today }));
   }, [currentMonth]);
 
   const handleDayClick = (date: string, isFuture: boolean) => {
@@ -252,6 +254,7 @@ export default function StreakCalendar({
         <div className="flex items-center justify-between p-4">
           <button
             onClick={prevMonth}
+            aria-label="Previous month"
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
           >
             <ChevronLeft size={20} className="text-text-muted" />
@@ -261,6 +264,7 @@ export default function StreakCalendar({
           </h3>
           <button
             onClick={nextMonth}
+            aria-label="Next month"
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
           >
             <ChevronRight size={20} className="text-text-muted" />
@@ -288,6 +292,9 @@ export default function StreakCalendar({
               return (
                 <button
                   key={date}
+                  data-date={date}
+                  data-workout={hasWorkout}
+                  aria-label={`${date}${hasWorkout ? ', workout' : ''}`}
                   onClick={() => handleDayClick(date, isFuture)}
                   disabled={isFuture || !editMode}
                   className={`

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, GripVertical, Dumbbell, User, Save, FileText } from 'lucide-react';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
@@ -12,12 +12,14 @@ interface TemplateEditorProps {
   template: WorkoutTemplate;
   onSave: (template: WorkoutTemplate) => void;
   onClose: () => void;
+  templates?: WorkoutTemplate[];
+  onMoveExercise?: (source: WorkoutTemplate, exerciseId: string, targetId: string) => void;
 }
 
 // Generate unique ID
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-export default function TemplateEditor({ template, onSave, onClose }: TemplateEditorProps) {
+export default function TemplateEditor({ template, onSave, onClose, templates = [], onMoveExercise }: TemplateEditorProps) {
   const [name, setName] = useState(template.name ?? `${PPL_CATEGORY_LABELS[template.category]} ${template.templateType}`);
   const [exercises, setExercises] = useState<TemplateExercise[]>(template.exercises.map(e => ({ ...e })));
   const [editingExercise, setEditingExercise] = useState<string | null>(null);
@@ -25,6 +27,16 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState(template.notes || '');
   const [showNotes, setShowNotes] = useState(!!template.notes);
+  const saveRef = useRef(onSave);
+  saveRef.current = onSave;
+  const serialized = JSON.stringify({ name, exercises, notes });
+  const lastSaved = useRef(serialized);
+  useEffect(() => {
+    if (lastSaved.current === serialized || !name.trim()) return;
+    lastSaved.current = serialized;
+    saveRef.current({ ...template, name: name.trim(), notes: notes.trim() || undefined,
+      exercises: exercises.map((e, i) => ({ ...e, order: i + 1 })), lastModified: new Date().toISOString() });
+  }, [serialized, name, exercises, notes, template]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const suppressClickUntil = useRef(0);
   const sensors = useSensors(
@@ -170,6 +182,7 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
               Edit Routine
             </h2>
             <p className="text-sm text-white/70">{exercises.length} exercises</p>
+            <p role="status" className="text-xs text-white/70">{name.trim() ? '변경 사항이 자동 저장됩니다.' : '루틴 이름을 입력하면 자동 저장됩니다.'}</p>
           </div>
           <button
             onClick={onClose}
@@ -395,6 +408,22 @@ export default function TemplateEditor({ template, onSave, onClose }: TemplateEd
                     </button>
                   </div>
                 )}
+                {onMoveExercise && <div className="mt-3 border-t border-white/10 pt-3" data-no-drag>
+                  <label htmlFor={`move-${exercise.id}`} className="text-xs text-text-muted block mb-1">다른 루틴으로 이동</label>
+                  <select id={`move-${exercise.id}`} value="" disabled={!name.trim() || templates.filter(t => t.id !== template.id).length === 0}
+                    className="w-full text-sm" onChange={event => {
+                      const targetId = event.target.value;
+                      if (!targetId) return;
+                      const target = templates.find(t => t.id === targetId);
+                      if (!target || target.exercises.length >= 256) return;
+                      onMoveExercise({ ...template, name: name.trim(), notes: notes.trim() || undefined, exercises }, exercise.id, targetId);
+                      setExercises(previous => previous.filter(e => e.id !== exercise.id));
+                      if (editingExercise === exercise.id) setEditingExercise(null);
+                    }}>
+                    <option value="">이동할 루틴 선택</option>
+                    {templates.filter(t => t.id !== template.id).map(t => <option key={t.id} value={t.id} disabled={t.exercises.length >= 256}>{t.name || `${PPL_CATEGORY_LABELS[t.category]} ${t.templateType}`}</option>)}
+                  </select>
+                </div>}
               </SortableExercise>
             );
           })}

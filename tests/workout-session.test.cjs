@@ -64,7 +64,7 @@ function environment() {
 function mountTracker(initialActive, initialTemplate = template) {
   let latest;
   function App() {
-    const [workouts, setWorkouts] = React.useState({ templates: structuredClone([initialTemplate]), logs: [] });
+    const [workouts, setWorkouts] = React.useState({ templates: structuredClone(Array.isArray(initialTemplate) ? initialTemplate : [initialTemplate]), logs: [] });
     const [activeWorkout, setActiveWorkout] = React.useState(initialActive);
     const [workoutStreak, setStreak] = React.useState(streak);
     latest = { workouts, activeWorkout, workoutStreak };
@@ -484,6 +484,51 @@ test('date-only storage uses local dates at Korean midnight, month and year boun
     assert.equal(formatDateISO(new Date('2027-01-01T00:00:00+09:00')), '2027-01-01');
     assert.equal(formatDateISO(new Date('2026-11-06T23:59:00+09:00')), '2026-11-06');
   } finally { if (originalTZ === undefined) delete process.env.TZ; else process.env.TZ = originalTZ; }
+});
+
+test('routine edits autosave without closing and moving exercises preserves settings without duplicates', () => {
+  const env = environment(); let renderer;
+  try {
+    const source = { ...template, exercises: template.exercises.map(e => ({ ...e, defaultRepsBySet: [11, 9], defaultWeightsBySet: [40, 45] })) };
+    const target = { ...template, id: 'target', name: 'Target', exercises: [] };
+    const app = mountTracker(undefined, [source, target]); renderer = app.renderer;
+    act(() => renderer.root.findByProps({ 'aria-label': 'Edit Chest 1' }).props.onClick());
+    act(() => renderer.root.findByProps({ id: 'routine-name' }).props.onChange({ target: { value: 'Chest A' } }));
+    assert.equal(app.data().workouts.templates[0].name, 'Chest A');
+    assert.equal(renderer.root.findAllByType(Editor).length, 1);
+    act(() => renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Bench Press'))[0].props.onClick());
+    act(() => renderer.root.findByProps({ id: 'set-reps-bench-0' }).props.onChange({ target: { value: '15' } }));
+    assert.equal(app.data().workouts.templates[0].exercises[0].defaultRepsBySet[0], 15);
+    const expected = structuredClone(app.data().workouts.templates[0].exercises[0]);
+    act(() => renderer.root.findByProps({ id: 'move-bench' }).props.onChange({ target: { value: 'target' } }));
+    assert.deepEqual(app.data().workouts.templates[0].exercises.map(e => e.id), ['fly']);
+    assert.deepEqual(app.data().workouts.templates[1].exercises[0], { ...expected, order: 1 });
+    assert.equal(renderer.root.findAllByType(Editor).length, 1);
+    act(() => renderer.root.findByProps({ id: 'move-fly' }).props.onChange({ target: { value: 'target' } }));
+    assert.equal(app.data().workouts.templates[0].exercises.length, 0);
+    assert.deepEqual(app.data().workouts.templates[1].exercises.map(e => e.id), ['bench', 'fly']);
+    assert.deepEqual(app.data().workouts.templates[1].exercises.map(e => e.order), [1, 2]);
+    assert.equal(app.data().workouts.logs.length, 0);
+    act(() => renderer.root.findByType(Editor).props.onClose());
+    act(() => renderer.root.findByProps({ 'aria-label': 'Edit Target' }).props.onClick());
+    assert.ok(renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Bench Press')).length);
+  } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
+});
+
+test('new named routines and added exercises persist without Save Routine; blank names preserve last valid data', () => {
+  const env = environment(); let renderer;
+  try {
+    const app = mountTracker(); renderer = app.renderer;
+    act(() => button(renderer, 'New Routine').props.onClick());
+    act(() => renderer.root.findByProps({ id: 'routine-name' }).props.onChange({ target: { value: 'New B' } }));
+    assert.equal(app.data().workouts.templates.length, 2);
+    act(() => button(renderer, 'Add Exercise').props.onClick());
+    assert.equal(app.data().workouts.templates[1].exercises.length, 1);
+    act(() => renderer.root.findByProps({ id: 'routine-name' }).props.onChange({ target: { value: '' } }));
+    assert.equal(app.data().workouts.templates[1].name, 'New B');
+    act(() => renderer.root.findByType(Editor).props.onClose());
+    assert.equal(app.data().workouts.templates[1].exercises.length, 1);
+  } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
 });
 
 test('time formatting and rest edge cases; new and legacy backups remain compatible', () => {

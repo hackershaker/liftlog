@@ -8,6 +8,7 @@ import TemplateEditor from './TemplateEditor';
 import { restAudio } from '../../utils/restAudio';
 import { updateRoutineFromWorkout } from '../../utils/updateRoutine';
 import { formatDateISO } from '../../hooks/useLocalStorage';
+import { moveRoutineExercise } from '../../utils/moveRoutineExercise';
 
 interface WorkoutTrackerProps {
   workouts: WorkoutData;
@@ -109,7 +110,6 @@ export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkou
     onUpdateWorkouts({ ...workouts, templates: exists
       ? workouts.templates.map(t => t.id === template.id ? template : t)
       : [...workouts.templates, template] });
-    setEditing(null);
   };
 
   const startRoutine = (template: WorkoutTemplate) => {
@@ -195,7 +195,10 @@ export default function WorkoutTracker({ workouts, workoutStreak, onUpdateWorkou
           </div>
         </>
       )}
-      {editing && <TemplateEditor key={editing.id} template={{ ...editing, name: editing.name ?? routineName(editing) }} onSave={saveRoutine} onClose={() => setEditing(null)} />}
+      {editing && <TemplateEditor key={editing.id} template={{ ...editing, name: editing.name ?? routineName(editing) }} onSave={saveRoutine} onClose={() => setEditing(null)}
+        templates={workouts.templates} onMoveExercise={(source, exerciseId, targetId) => {
+          onUpdateWorkouts({ ...workouts, templates: moveRoutineExercise(workouts.templates, source, exerciseId, targetId) });
+        }} />}
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Trash2, GripVertical, Dumbbell, User, FileText } from 'lucide-react';
+import { X, Plus, GripVertical, Dumbbell, User, FileText } from 'lucide-react';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import SortableExercise from './SortableExercise';
+import ExerciseActions from './ExerciseActions';
 import { WorkoutTemplate, TemplateExercise } from '../../types';
 import { PPL_CATEGORY_COLORS, PPL_CATEGORY_LABELS } from '../../constants';
 
@@ -235,6 +236,16 @@ export default function TemplateEditor({ template, onSave, onClose, templates = 
           }}>
           {exercises.map((exercise) => {
             const isEditing = editingExercise === exercise.id;
+            const actions = <ExerciseActions name={exercise.name}
+              targets={templates.filter(t => t.id !== template.id).map(t => ({ id: t.id, name: t.name || `${PPL_CATEGORY_LABELS[t.category]} ${t.templateType}`, disabled: t.exercises.length >= 256 }))}
+              onDelete={() => handleDeleteExercise(exercise.id)}
+              onMove={onMoveExercise && name.trim() ? targetId => {
+                const target = templates.find(t => t.id === targetId);
+                if (!target || target.exercises.length >= 256) return;
+                onMoveExercise({ ...template, name: name.trim(), notes: notes.trim() || undefined, exercises }, exercise.id, targetId);
+                setExercises(previous => previous.filter(e => e.id !== exercise.id));
+                if (editingExercise === exercise.id) setEditingExercise(null);
+              } : undefined} />;
 
             return (
               <SortableExercise
@@ -245,6 +256,7 @@ export default function TemplateEditor({ template, onSave, onClose, templates = 
                 {isEditing ? (
                   // Edit mode
                   <div className="space-y-4">
+                    <div className="flex justify-end">{actions}</div>
                     {/* Name */}
                     <div>
                       <label className="text-xs text-text-muted mb-1 block">Exercise Name</label>
@@ -387,32 +399,9 @@ export default function TemplateEditor({ template, onSave, onClose, templates = 
                       <p className="text-xs text-text-muted">Rest: {exercise.restBetweenSetsSeconds ?? 0}s between sets / {exercise.restAfterExerciseSeconds ?? 0}s after exercise</p>
                     </button>
 
-                    {/* Delete button */}
-                    <button
-                      data-no-drag
-                      onClick={() => handleDeleteExercise(exercise.id)}
-                      className="p-2 rounded-lg text-text-muted hover:text-accent-danger hover:bg-accent-danger/10 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {actions}
                   </div>
                 )}
-                {onMoveExercise && <div className="mt-3 border-t border-white/10 pt-3" data-no-drag>
-                  <label htmlFor={`move-${exercise.id}`} className="text-xs text-text-muted block mb-1">다른 루틴으로 이동</label>
-                  <select id={`move-${exercise.id}`} value="" disabled={!name.trim() || templates.filter(t => t.id !== template.id).length === 0}
-                    className="w-full text-sm" onChange={event => {
-                      const targetId = event.target.value;
-                      if (!targetId) return;
-                      const target = templates.find(t => t.id === targetId);
-                      if (!target || target.exercises.length >= 256) return;
-                      onMoveExercise({ ...template, name: name.trim(), notes: notes.trim() || undefined, exercises }, exercise.id, targetId);
-                      setExercises(previous => previous.filter(e => e.id !== exercise.id));
-                      if (editingExercise === exercise.id) setEditingExercise(null);
-                    }}>
-                    <option value="">이동할 루틴 선택</option>
-                    {templates.filter(t => t.id !== template.id).map(t => <option key={t.id} value={t.id} disabled={t.exercises.length >= 256}>{t.name || `${PPL_CATEGORY_LABELS[t.category]} ${t.templateType}`}</option>)}
-                  </select>
-                </div>}
               </SortableExercise>
             );
           })}

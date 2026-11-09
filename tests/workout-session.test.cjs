@@ -494,11 +494,17 @@ test('routine edits autosave without closing and moving exercises preserves sett
     act(() => renderer.root.findByProps({ id: 'set-reps-bench-0' }).props.onChange({ target: { value: '15' } }));
     assert.equal(app.data().workouts.templates[0].exercises[0].defaultRepsBySet[0], 15);
     const expected = structuredClone(app.data().workouts.templates[0].exercises[0]);
-    act(() => renderer.root.findByProps({ id: 'move-bench' }).props.onChange({ target: { value: 'target' } }));
+    assert.equal(renderer.root.findAllByType('select').length, 0);
+    act(() => renderer.root.findByProps({ 'aria-label': 'Bench Press 메뉴' }).props.onClick());
+    act(() => button(renderer, '루틴 이동').props.onClick());
+    assert.equal(renderer.root.findAllByProps({ role: 'dialog' }).length, 1);
+    act(() => button(renderer, 'Target').props.onClick());
     assert.deepEqual(app.data().workouts.templates[0].exercises.map(e => e.id), ['fly']);
     assert.deepEqual(app.data().workouts.templates[1].exercises[0], { ...expected, order: 1 });
     assert.equal(renderer.root.findAllByType(Editor).length, 1);
-    act(() => renderer.root.findByProps({ id: 'move-fly' }).props.onChange({ target: { value: 'target' } }));
+    act(() => renderer.root.findByProps({ 'aria-label': 'Fly 메뉴' }).props.onClick());
+    act(() => button(renderer, '루틴 이동').props.onClick());
+    act(() => button(renderer, 'Target').props.onClick());
     assert.equal(app.data().workouts.templates[0].exercises.length, 0);
     assert.deepEqual(app.data().workouts.templates[1].exercises.map(e => e.id), ['bench', 'fly']);
     assert.deepEqual(app.data().workouts.templates[1].exercises.map(e => e.order), [1, 2]);
@@ -522,6 +528,34 @@ test('new named routines and added exercises persist without Save Routine; blank
     assert.equal(app.data().workouts.templates[1].name, 'New B');
     act(() => renderer.root.findByType(Editor).props.onClose());
     assert.equal(app.data().workouts.templates[1].exercises.length, 1);
+  } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
+});
+
+test('exercise menu hides actions until opened and deletes only after explicit confirmation', () => {
+  const env = environment(); let renderer;
+  try {
+    const app = mountTracker(); renderer = app.renderer;
+    act(() => renderer.root.findByProps({ 'aria-label': 'Edit Chest 1' }).props.onClick());
+    assert.equal(renderer.root.findAllByProps({ role: 'menu' }).length, 0);
+    assert.equal(renderer.root.findAllByType('select').length, 0);
+    act(() => renderer.root.findByProps({ 'aria-label': 'Bench Press 메뉴' }).props.onClick());
+    assert.equal(renderer.root.findAllByProps({ role: 'menuitem' }).length, 2);
+    act(() => button(renderer, '삭제').props.onClick());
+    assert.equal(renderer.root.findAllByProps({ role: 'alertdialog' }).length, 1);
+    assert.ok(text(renderer.root).includes('정말 삭제하시겠습니까?'));
+    assert.equal(app.data().workouts.templates[0].exercises.length, 2);
+    act(() => button(renderer, '취소').props.onClick());
+    assert.equal(app.data().workouts.templates[0].exercises.length, 2);
+    act(() => renderer.root.findByProps({ 'aria-label': 'Bench Press 메뉴' }).props.onClick());
+    act(() => button(renderer, '루틴 이동').props.onClick());
+    assert.ok(text(renderer.root).includes('이동할 다른 루틴이 없습니다.'));
+    act(() => button(renderer, '취소').props.onClick());
+    act(() => renderer.root.findByProps({ 'aria-label': 'Bench Press 메뉴' }).props.onClick());
+    act(() => button(renderer, '삭제').props.onClick());
+    act(() => button(renderer, '삭제 확인').props.onClick());
+    assert.deepEqual(app.data().workouts.templates[0].exercises.map(e => e.id), ['fly']);
+    assert.equal(renderer.root.findAllByProps({ role: 'alertdialog' }).length, 0);
+    assert.equal(renderer.root.findAllByType(Editor).length, 1);
   } finally { if (renderer) act(() => renderer.unmount()); env.restore(); }
 });
 

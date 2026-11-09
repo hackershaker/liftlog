@@ -165,14 +165,12 @@ test('editor saves separate rest settings per exercise and rejects negative or e
     act(() => renderer.root.findAll(n => n.type === 'button' && text(n).startsWith('Bench Press'))[0].props.onClick());
     act(() => renderer.root.findByProps({ id: 'set-rest-bench' }).props.onChange({ target: { value: '75' } }));
     act(() => renderer.root.findByProps({ id: 'exercise-rest-bench' }).props.onChange({ target: { value: '180' } }));
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.equal(saved.exercises[0].restBetweenSetsSeconds, 75);
     assert.equal(saved.exercises[0].restAfterExerciseSeconds, 180);
     assert.equal(saved.exercises[1].restBetweenSetsSeconds, 30);
     assert.equal(template.exercises[0].restBetweenSetsSeconds, 60);
     act(() => renderer.root.findByProps({ id: 'set-rest-bench' }).props.onChange({ target: { value: '-5' } }));
     act(() => renderer.root.findByProps({ id: 'exercise-rest-bench' }).props.onChange({ target: { value: '5000' } }));
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.equal(saved.exercises[0].restBetweenSetsSeconds, 0);
     assert.equal(saved.exercises[0].restAfterExerciseSeconds, 3600);
   } finally { act(() => renderer.unmount()); }
@@ -187,13 +185,11 @@ test('per-set reps follow set count, survive saving and backup, and initialize t
     change('set-count-bench', '3');
     assert.equal(renderer.root.findAll(n => n.type === 'input' && String(n.props.id).startsWith('set-reps-bench-')).length, 3);
     for (const [i, value] of ['12', '10', '8'].entries()) change(`set-reps-bench-${i}`, value);
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.deepEqual(saved.exercises[0].defaultRepsBySet, [12, 10, 8]);
     const threeSets = structuredClone(saved);
     change('set-count-bench', '4');
     assert.equal(renderer.root.findByProps({ id: 'set-reps-bench-3' }).props.value, 8);
     change('set-count-bench', '2');
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.deepEqual(saved.exercises[0].defaultRepsBySet, [12, 10]);
     act(() => renderer.unmount()); renderer = undefined;
     const app = mountTracker(undefined, threeSets); renderer = app.renderer;
@@ -229,7 +225,6 @@ test('sets and reps can be cleared and retyped without forced defaults or accide
     assert.equal(input('set-reps-bench-0').props.value, '');
     change('set-reps-bench-0', '1');
     change('set-reps-bench-0', '12');
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.equal(saved.exercises[0].defaultSets, 2);
     assert.equal(saved.exercises[0].defaultRepsBySet[0], 12);
     change('set-reps-bench-0', '');
@@ -349,7 +344,6 @@ test('long-press sorting moves exercises in both directions, saves order and kee
     start('bench');
     drop('bench', 'squat');
     assert.deepEqual(ids(), ['fly', 'squat', 'bench']);
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.deepEqual(saved.exercises.map(e => e.order), [1, 2, 3]);
     assert.equal(saved.exercises[2].restBetweenSetsSeconds, 60);
     assert.equal(saved.exercises[2].defaultWeight, 40);
@@ -383,7 +377,6 @@ test('per-set weights survive resizing, editing, workout start, completion, rest
     change('set-count-bench', '3');
     assert.equal(renderer.root.findByProps({ id: 'set-weight-bench-2' }).props.value, 42.5);
     change('set-count-bench', '2');
-    act(() => button(renderer, 'Save Routine').props.onClick());
     assert.deepEqual(saved.exercises[0].defaultWeightsBySet, [0, 42.5]);
     act(() => renderer.unmount()); renderer = undefined;
     const app = mountTracker(undefined, saved); renderer = app.renderer;
@@ -493,6 +486,7 @@ test('routine edits autosave without closing and moving exercises preserves sett
     const target = { ...template, id: 'target', name: 'Target', exercises: [] };
     const app = mountTracker(undefined, [source, target]); renderer = app.renderer;
     act(() => renderer.root.findByProps({ 'aria-label': 'Edit Chest 1' }).props.onClick());
+    assert.equal(renderer.root.findAll(n => n.type === 'button' && text(n) === 'Save Routine').length, 0);
     act(() => renderer.root.findByProps({ id: 'routine-name' }).props.onChange({ target: { value: 'Chest A' } }));
     assert.equal(app.data().workouts.templates[0].name, 'Chest A');
     assert.equal(renderer.root.findAllByType(Editor).length, 1);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Trash2, GripVertical, Dumbbell, User, Save, FileText } from 'lucide-react';
+import { X, Plus, Trash2, GripVertical, Dumbbell, User, FileText } from 'lucide-react';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -141,17 +141,6 @@ export default function TemplateEditor({ template, onSave, onClose, templates = 
     });
   };
 
-  const handleSave = () => {
-    if (!name.trim() || exercises.length === 0) return;
-    const updatedTemplate: WorkoutTemplate = {
-      ...template,
-      name: name.trim(),
-      exercises: exercises.map((exercise, i) => ({ ...exercise, order: i + 1 })),
-      lastModified: new Date().toISOString(),
-      notes: notes.trim() || undefined
-    };
-    onSave(updatedTemplate);
-  };
 
   const dragOverlay = (
     <DragOverlay zIndex={60} dropAnimation={null}>
@@ -441,16 +430,6 @@ export default function TemplateEditor({ template, onSave, onClose, templates = 
             Add Exercise
           </button>
 
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            disabled={!name.trim() || exercises.length === 0}
-            className="w-full btn-primary flex items-center justify-center gap-2 py-4 mt-4"
-            style={{ backgroundColor: categoryColor }}
-          >
-            <Save size={18} />
-            Save Routine
-          </button>
         </div>
       </div>
     </div>

@@ -12,9 +12,29 @@ interface ExerciseActionsProps {
 export default function ExerciseActions({ name, targets, onMove, onDelete }: ExerciseActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialog, setDialog] = useState<'move' | 'delete' | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   const close = () => { setMenuOpen(false); setDialog(null); trigger.current?.focus(); };
+  const positionMenu = () => {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (!rect) return;
+    const height = onMove ? 112 : 60;
+    setMenuPosition({
+      left: Math.max(8, Math.min(rect.right - 160, window.innerWidth - 168)),
+      top: rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - height - 4),
+    });
+  };
+  useEffect(() => {
+    if (!menuOpen) return;
+    positionMenu();
+    window.addEventListener('resize', positionMenu);
+    window.addEventListener('scroll', positionMenu, true);
+    return () => {
+      window.removeEventListener('resize', positionMenu);
+      window.removeEventListener('scroll', positionMenu, true);
+    };
+  }, [menuOpen, onMove]);
   useEffect(() => {
     if (!menuOpen && !dialog) return;
     if (dialog) cancel.current?.focus();
@@ -56,17 +76,20 @@ export default function ExerciseActions({ name, targets, onMove, onDelete }: Exe
       </div>
     </div>
   );
+  const menu = menuOpen && (
+    <div data-testid="exercise-menu-layer" className="fixed inset-0 z-[65]" data-no-drag>
+      <div className="absolute inset-0" onClick={close} />
+      <div role="menu" aria-label={`${name} 작업`} style={menuPosition} className="fixed w-40 max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-y-auto rounded-xl border border-white/10 bg-bg-secondary p-1 shadow-xl">
+        {onMove && <button role="menuitem" className="flex items-center gap-2 w-full px-3 py-3 rounded-lg hover:bg-bg-tertiary text-sm" onClick={() => { setMenuOpen(false); setDialog('move'); }}><ArrowRightLeft size={16} />루틴 이동</button>}
+        <button role="menuitem" className="flex items-center gap-2 w-full px-3 py-3 rounded-lg text-accent-danger hover:bg-bg-tertiary text-sm" onClick={() => { setMenuOpen(false); setDialog('delete'); }}><Trash2 size={16} />삭제</button>
+      </div>
+    </div>
+  );
   return (
     <div className="relative shrink-0" data-no-drag>
       <button ref={trigger} type="button" aria-label={`${name} 메뉴`} aria-expanded={menuOpen} aria-haspopup="menu"
-        className="p-3 rounded-lg text-text-muted hover:bg-bg-tertiary" onClick={() => setMenuOpen(open => !open)}><MoreVertical size={20} /></button>
-      {menuOpen && <>
-        <div className="fixed inset-0 z-20" onClick={close} />
-        <div role="menu" aria-label={`${name} 작업`} className="absolute right-0 top-full z-30 w-40 rounded-xl border border-white/10 bg-bg-secondary p-1 shadow-xl">
-          {onMove && <button role="menuitem" className="flex items-center gap-2 w-full px-3 py-3 rounded-lg hover:bg-bg-tertiary text-sm" onClick={() => { setMenuOpen(false); setDialog('move'); }}><ArrowRightLeft size={16} />루틴 이동</button>}
-          <button role="menuitem" className="flex items-center gap-2 w-full px-3 py-3 rounded-lg text-accent-danger hover:bg-bg-tertiary text-sm" onClick={() => { setMenuOpen(false); setDialog('delete'); }}><Trash2 size={16} />삭제</button>
-        </div>
-      </>}
+        className="p-3 rounded-lg text-text-muted hover:bg-bg-tertiary" onClick={() => { positionMenu(); setMenuOpen(open => !open); }}><MoreVertical size={20} /></button>
+      {menu && (typeof document !== 'undefined' && document.body ? createPortal(menu, document.body) : menu)}
       {floating && (typeof document !== 'undefined' && document.body ? createPortal(floating, document.body) : floating)}
     </div>
   );

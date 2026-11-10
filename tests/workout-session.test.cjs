@@ -540,6 +540,8 @@ test('exercise menu hides actions until opened and deletes only after explicit c
     assert.equal(renderer.root.findAllByType('select').length, 0);
     act(() => renderer.root.findByProps({ 'aria-label': 'Bench Press 메뉴' }).props.onClick());
     assert.equal(renderer.root.findAllByProps({ role: 'menuitem' }).length, 2);
+    assert.ok(renderer.root.findByProps({ 'data-testid': 'exercise-menu-layer' }).props.className.includes('fixed inset-0 z-[65]'));
+    assert.ok(renderer.root.findByProps({ role: 'menu' }).props.className.includes('fixed'));
     act(() => button(renderer, '삭제').props.onClick());
     assert.equal(renderer.root.findAllByProps({ role: 'alertdialog' }).length, 1);
     assert.ok(text(renderer.root).includes('정말 삭제하시겠습니까?'));
